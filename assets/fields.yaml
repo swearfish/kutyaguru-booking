@@ -1,0 +1,36 @@
+﻿mappings:
+  "Partner megnevezése:": "Ügyfél neve"
+  "Email": "Ügyfél e-mail címe"
+  "Tétel megnevezés": "Szolgáltatás"
+  "Mennyiség": "Foglalások száma"
+  "Irányítószám": "Irányító szám"
+  "Település": "Város"
+  "Utca, házszám": "Utca, házszám"
+constants: {}
+editables:
+  "Fizetési mód":
+    value: "Készpénz"
+    options:
+      - "Készpénz"
+      - "Átutalás"
+  "Áfakulcs":
+    value: AAM
+    options:
+      - AAM
+      - TAM
+  "Mennyiségi egység":
+    value: db
+  "Nettó egységár":
+    value: 3 500 Ft
+  Kelt:
+    type: date
+    today: true
+    plus: 0
+  "Teljesítés":
+    type: date
+    today: true
+    plus: 0
+  "Fizetési határidő":
+    type: date
+    today: true
+    plus: 3

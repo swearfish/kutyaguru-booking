@@ -1,0 +1,23 @@
+;;Számlázási cím;;;;;;;Levelezési cím;;;;;;;;;;;;;;;;Számlázási cím;Levelezési cím
+;Partner megnevezése:;Irányítószám;Település;Utca, házszám;Fizetési mód;Kelt;Teljesítés;Fizetési határidõ;Név;Irányítószám;Település;Utca, házszám;Megjegyzés;Szállító bankszámlaszáma;Email;Nyelv;Logófájl neve;Rendelésszám;Partner adószáma;Vevõ fõkönyvi szám;Vevõ fõkönyvi azonosító;Partner EU-s adószáma;Folyamatos teljesítésû;Könyvelés dátuma;Ország;Ország
+;Tétel megnevezés;Mennyiség;Mennyiségi egység;Nettó egységár;Áfakulcs;Tétel nettó;Tétel áfa;Tétel bruttó;Tétel megjegyzés;Árbevétel fõkönyvi szám;Áfa fõkönyvi szám;Gazdasági esemény azonosító;Áfa gazdasági esemény azonosító;;;;;;;;;;;;;
+1;;;;;Utalás;2025.02.20;2025.02.23;2025.02.24;;;;;;;;;;;;;;;;;;
+;BASIC Tanfolyam;1;DB;49 000 Ft;AAM;;;;;;;;;;;;;;;;;;;;;
+2;;;;;Utalás;2025.02.20;2025.02.23;2025.02.24;;;;;;;;;;;;;;;;;;
+;BASIC Tanfolyam;1;DB;49 000 Ft;AAM;;;;;;;;;;;;;;;;;;;;;
+3;;;;;Utalás;2025.02.20;2025.02.23;2025.02.24;;;;;;;;;;;;;;;;;;
+;BASIC Tanfolyam;1;DB;49 000 Ft;AAM;;;;;;;;;;;;;;;;;;;;;
+4;;;;;Utalás;2025.02.20;2025.02.23;2025.02.24;;;;;;;;;;;;;;;;;;
+;BASIC Tanfolyam;1;DB;49 000 Ft;AAM;;;;;;;;;;;;;;;;;;;;;
+5;;;;;Utalás;2025.02.20;2025.02.23;2025.02.24;;;;;;;;;;;;;;;;;;
+;BASIC Tanfolyam;1;DB;49 000 Ft;AAM;;;;;;;;;;;;;;;;;;;;;
+6;;;;;Utalás;2025.02.20;2025.02.23;2025.02.24;;;;;;;;;;;;;;;;;;
+;BASIC Tanfolyam;1;DB;49 000 Ft;AAM;;;;;;;;;;;;;;;;;;;;;
+7;;;;;Utalás;2025.02.20;2025.02.23;2025.02.24;;;;;;;;;;;;;;;;;;
+;BASIC Tanfolyam;1;DB;49 000 Ft;AAM;;;;;;;;;;;;;;;;;;;;;
+8;;;;;Utalás;2025.02.20;2025.02.23;2025.02.24;;;;;;;;;;;;;;;;;;
+;BASIC Tanfolyam;1;DB;49 000 Ft;AAM;;;;;;;;;;;;;;;;;;;;;
+9;;;;;Utalás;2025.02.20;2025.02.23;2025.02.24;;;;;;;;;;;;;;;;;;
+;BASIC Tanfolyam;2;DB;49 000 Ft;AAM;;;;;;;;;;;;;;;;;;;;;
+10;;;;;Utalás;2025.02.20;2025.02.23;2025.02.24;;;;;;;;;;;;;;;;;;
+;BASIC Tanfolyam;3;DB;49 000 Ft;AAM;;;;;;;;;;;;;;;;;;;;;
