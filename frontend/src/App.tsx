@@ -1,5 +1,5 @@
-import { useState, useCallback } from 'react'
-import { Stack, Tabs } from '@mantine/core'
+import { useState, useCallback, useEffect } from 'react'
+import { AppShell, useMantineColorScheme } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
 import { main } from '../wailsjs/go/models'
 import {
@@ -13,20 +13,50 @@ import {
   ImportFromExcel,
   SaveCSV,
   GetStatus,
+  GetSettings,
+  SaveSettings,
+  SetEncoding,
 } from '../wailsjs/go/main/Booking'
 import Toolbar from './components/Toolbar'
 import DataTab from './components/DataTab'
 import FieldsTab from './components/FieldsTab'
 import StatusBar from './components/StatusBar'
+import NavSidebar from './components/NavSidebar'
+import SheetTabs from './components/SheetTabs'
 
 const emptyTable: main.TableDataResult = new main.TableDataResult({ columns: [], rows: [], cellErrors: [] })
 
+type View = 'table' | 'fields'
+type ColorScheme = 'light' | 'dark' | 'auto'
+
 export default function App() {
+  const { setColorScheme: mantineSetColorScheme } = useMantineColorScheme()
+
+  const [view, setView] = useState<View>('table')
   const [sheetNames, setSheetNames] = useState<string[]>([])
   const [selectedSheet, setSelectedSheet] = useState<string | null>(null)
   const [fields, setFields] = useState<main.Field[]>([])
   const [tableData, setTableData] = useState<main.TableDataResult>(emptyTable)
   const [status, setStatus] = useState<string>('')
+  const [colorScheme, setColorScheme] = useState<ColorScheme>('auto')
+  const [encoding, setEncoding] = useState<string>('ISO-8859-2')
+
+  // Load persisted settings on mount.
+  useEffect(() => {
+    GetSettings().then(s => {
+      const scheme = (s.colorScheme as ColorScheme) || 'auto'
+      setColorScheme(scheme)
+      mantineSetColorScheme(scheme)
+      setEncoding(s.encoding || 'ISO-8859-2')
+    })
+  }, [])
+
+  const currentSettings = useCallback((): main.Settings => {
+    const s = new main.Settings({})
+    s.colorScheme = colorScheme
+    s.encoding = encoding
+    return s
+  }, [colorScheme, encoding])
 
   const handleOpenFile = useCallback(async () => {
     try {
@@ -75,9 +105,9 @@ export default function App() {
     }
   }, [])
 
-  const handleSaveCSV = useCallback(async (encoding: string) => {
+  const handleSaveCSV = useCallback(async () => {
     try {
-      await SaveCSV(encoding)
+      await SaveCSV()
       notifications.show({ color: 'green', message: 'CSV sikeresen mentve.' })
     } catch (err: any) {
       if (err) notifications.show({ color: 'red', title: 'Hiba', message: String(err) })
@@ -104,30 +134,81 @@ export default function App() {
     }
   }, [])
 
+  const handleColorSchemeChange = useCallback(async (scheme: string) => {
+    const s = scheme as ColorScheme
+    setColorScheme(s)
+    mantineSetColorScheme(s)
+    try {
+      const settings = new main.Settings({
+        colorScheme: s,
+        encoding,
+        windowX: 0, windowY: 0, windowW: 0, windowH: 0,
+      })
+      await SaveSettings(settings)
+    } catch { /* non-critical */ }
+  }, [encoding])
+
+  const handleEncodingChange = useCallback(async (enc: string) => {
+    setEncoding(enc)
+    try {
+      const result = await SetEncoding(enc)
+      setTableData(result)
+      const settings = new main.Settings({
+        colorScheme,
+        encoding: enc,
+        windowX: 0, windowY: 0, windowW: 0, windowH: 0,
+      })
+      await SaveSettings(settings)
+    } catch (err: any) {
+      notifications.show({ color: 'red', title: 'Hiba', message: String(err) })
+    }
+  }, [colorScheme])
+
   return (
-    <Stack h="100vh" gap={0}>
-      <Toolbar
-        sheetNames={sheetNames}
-        selectedSheet={selectedSheet}
-        onOpenFile={handleOpenFile}
-        onSheetChange={handleSheetChange}
-        onExportExcel={handleExportExcel}
-        onImportExcel={handleImportExcel}
-        onSaveCSV={handleSaveCSV}
-      />
-      <Tabs defaultValue="table" flex={1} style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-        <Tabs.List>
-          <Tabs.Tab value="table">Táblázat</Tabs.Tab>
-          <Tabs.Tab value="fields">Mezők</Tabs.Tab>
-        </Tabs.List>
-        <Tabs.Panel value="table" style={{ flex: 1, overflow: 'hidden' }}>
-          <DataTab tableData={tableData} onCellChange={handleCellChange} />
-        </Tabs.Panel>
-        <Tabs.Panel value="fields" style={{ flex: 1, overflow: 'auto' }}>
-          <FieldsTab fields={fields} onFieldChange={handleFieldChange} />
-        </Tabs.Panel>
-      </Tabs>
-      <StatusBar status={status} />
-    </Stack>
+    <AppShell
+      header={{ height: 44 }}
+      navbar={{ width: 50, breakpoint: 0 }}
+      footer={{ height: 26 }}
+      padding={0}
+    >
+      <AppShell.Header>
+        <Toolbar
+          onOpenFile={handleOpenFile}
+          onExportExcel={handleExportExcel}
+          onImportExcel={handleImportExcel}
+          onSaveCSV={handleSaveCSV}
+          hasData={sheetNames.length > 0}
+        />
+      </AppShell.Header>
+
+      <AppShell.Navbar>
+        <NavSidebar
+          view={view}
+          onViewChange={setView}
+          colorScheme={colorScheme}
+          encoding={encoding}
+          onColorSchemeChange={handleColorSchemeChange}
+          onEncodingChange={handleEncodingChange}
+        />
+      </AppShell.Navbar>
+
+      <AppShell.Main style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
+          {view === 'table'
+            ? <DataTab tableData={tableData} onCellChange={handleCellChange} />
+            : <FieldsTab fields={fields} onFieldChange={handleFieldChange} />
+          }
+        </div>
+        <SheetTabs
+          sheets={sheetNames}
+          selected={selectedSheet}
+          onChange={handleSheetChange}
+        />
+      </AppShell.Main>
+
+      <AppShell.Footer>
+        <StatusBar status={status} />
+      </AppShell.Footer>
+    </AppShell>
   )
 }

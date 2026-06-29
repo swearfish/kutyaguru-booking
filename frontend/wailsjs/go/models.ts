@@ -40,6 +40,28 @@ export namespace main {
 	        this.options = source["options"];
 	    }
 	}
+	export class Settings {
+	    colorScheme: string;
+	    encoding: string;
+	    windowX: number;
+	    windowY: number;
+	    windowW: number;
+	    windowH: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new Settings(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.colorScheme = source["colorScheme"];
+	        this.encoding = source["encoding"];
+	        this.windowX = source["windowX"];
+	        this.windowY = source["windowY"];
+	        this.windowW = source["windowW"];
+	        this.windowH = source["windowH"];
+	    }
+	}
 	export class TableDataResult {
 	    columns: string[];
 	    rows: string[][];

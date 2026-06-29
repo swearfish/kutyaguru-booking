@@ -5,9 +5,11 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -33,22 +35,41 @@ const (
 	FieldTypeDate    FieldType = "DATE"
 )
 
+// Settings holds user preferences persisted across sessions.
+type Settings struct {
+	ColorScheme string `json:"colorScheme"` // "light" | "dark" | "auto"
+	Encoding    string `json:"encoding"`    // "ISO-8859-2" | "UTF-8"
+	WindowX     int    `json:"windowX"`
+	WindowY     int    `json:"windowY"`
+	WindowW     int    `json:"windowW"`
+	WindowH     int    `json:"windowH"`
+}
+
+func defaultSettings() Settings {
+	return Settings{
+		ColorScheme: "auto",
+		Encoding:    "ISO-8859-2",
+		WindowW:     1280,
+		WindowH:     800,
+	}
+}
+
 // Field is serialised to JSON and sent to the frontend for the Mezők tab.
 type Field struct {
 	Name    string    `json:"name"`
 	Type    FieldType `json:"type"`
-	Mapping string    `json:"mapping,omitempty"` // source Excel column header (MAPPING only)
+	Mapping string    `json:"mapping,omitempty"`
 	Value   string    `json:"value"`
-	Options []string  `json:"options,omitempty"` // dropdown choices (TEXT only)
+	Options []string  `json:"options,omitempty"`
 }
 
-// CellError describes one cell whose value cannot be encoded in ISO-8859-2.
+// CellError describes one cell whose value cannot be encoded in the current encoding.
 type CellError struct {
 	RowIndex    int    `json:"rowIndex"`
 	ColName     string `json:"colName"`
 	Value       string `json:"value"`
-	InvalidChar string `json:"invalidChar"` // the first unencodable rune as a string
-	CharPos     int    `json:"charPos"`     // byte offset of that rune within Value
+	InvalidChar string `json:"invalidChar"`
+	CharPos     int    `json:"charPos"`
 }
 
 // TableDataResult is returned to the frontend whenever the table changes.
@@ -60,11 +81,10 @@ type TableDataResult struct {
 
 // templateData holds the parsed Számlázz.hu CSV template.
 type templateData struct {
-	HeaderLines []string   // lines that started with ";;" — written verbatim to output
-	ColDefLines [][]string // each element is one ";"-prefixed line split on ";"
+	HeaderLines []string
+	ColDefLines [][]string
 }
 
-// editableFieldYAML is used only while parsing fields.yaml.
 type editableFieldYAML struct {
 	Type    string   `yaml:"type"`
 	Value   string   `yaml:"value"`
@@ -73,22 +93,32 @@ type editableFieldYAML struct {
 	Plus    int      `yaml:"plus"`
 }
 
-// Booking is the struct bound to Wails. Every exported method becomes callable
-// from JavaScript as window.go.main.Booking.<MethodName>().
+// Booking is the struct bound to Wails.
 type Booking struct {
-	ctx         context.Context
-	fields      []Field      // ordered field definitions
-	columnNames []string     // parallel to fields: [f.Name for f in fields]
-	rows        [][]string   // one []string per booking row, aligned to columnNames
-	tmpl        templateData // parsed basic_sablon.csv
-	excelPath   string       // path of the currently open Booked4us file
-	cellErrors  []CellError  // current encoding validation errors
+	ctx          context.Context
+	fields       []Field
+	columnNames  []string
+	rows         [][]string
+	tmpl         templateData
+	excelPath    string
+	cellErrors   []CellError
+	settings     Settings
+	settingsPath string
 }
 
 func newBooking() *Booking { return &Booking{} }
 
-// init is called once from app.startup. Loads embedded assets.
 func (b *Booking) init() error {
+	// Determine settings file path.
+	cfgDir, err := os.UserConfigDir()
+	if err != nil {
+		cfgDir = os.TempDir()
+	}
+	b.settingsPath = filepath.Join(cfgDir, "kutyaguru", "settings.json")
+
+	// Load persisted settings (falls back to defaults on any error).
+	b.settings = b.loadSettings()
+
 	fields, err := parseFieldsYAML(defaultFieldsYAML)
 	if err != nil {
 		return fmt.Errorf("fields.yaml: %w", err)
@@ -107,7 +137,54 @@ func (b *Booking) init() error {
 	return nil
 }
 
+func (b *Booking) loadSettings() Settings {
+	s := defaultSettings()
+	data, err := os.ReadFile(b.settingsPath)
+	if err != nil {
+		return s
+	}
+	if err := json.Unmarshal(data, &s); err != nil {
+		return defaultSettings()
+	}
+	// Ensure non-zero window size after loading.
+	if s.WindowW == 0 {
+		s.WindowW = 1280
+	}
+	if s.WindowH == 0 {
+		s.WindowH = 800
+	}
+	return s
+}
+
+func (b *Booking) saveSettings() {
+	data, err := json.MarshalIndent(b.settings, "", "  ")
+	if err != nil {
+		return
+	}
+	_ = os.MkdirAll(filepath.Dir(b.settingsPath), 0o755)
+	_ = os.WriteFile(b.settingsPath, data, 0o644)
+}
+
 // ─── Wails-exposed methods ────────────────────────────────────────────────────
+
+// GetSettings returns the current user settings (called on frontend mount).
+func (b *Booking) GetSettings() Settings {
+	return b.settings
+}
+
+// SaveSettings persists the given settings to disk (called when user changes theme/encoding).
+func (b *Booking) SaveSettings(s Settings) error {
+	b.settings = s
+	b.saveSettings()
+	return nil
+}
+
+// SetEncoding updates the CSV encoding, re-validates all cells, and returns the new table state.
+func (b *Booking) SetEncoding(enc string) TableDataResult {
+	b.settings.Encoding = enc
+	b.cellErrors = b.validateAllCells()
+	return b.buildResult()
+}
 
 // OpenBookedFile shows a file-open dialog for xlsx files and returns the sheet names.
 func (b *Booking) OpenBookedFile() ([]string, error) {
@@ -121,7 +198,7 @@ func (b *Booking) OpenBookedFile() ([]string, error) {
 		return nil, err
 	}
 	if path == "" {
-		return nil, nil // user cancelled
+		return nil, nil
 	}
 	f, err := excelize.OpenFile(path)
 	if err != nil {
@@ -154,7 +231,6 @@ func (b *Booking) LoadSheet(sheetName string) (TableDataResult, error) {
 		return b.buildResult(), nil
 	}
 
-	// Build header index from the first row.
 	headerRow := allRows[0]
 	headerIndex := make(map[string]int, len(headerRow))
 	for i, h := range headerRow {
@@ -187,7 +263,6 @@ func (b *Booking) GetFields() []Field {
 }
 
 // UpdateFieldValue mutates the in-memory value of an editable field.
-// The change takes effect immediately via ReapplyFields on the frontend.
 func (b *Booking) UpdateFieldValue(fieldName, value string) error {
 	for i := range b.fields {
 		if b.fields[i].Name == fieldName {
@@ -201,8 +276,7 @@ func (b *Booking) UpdateFieldValue(fieldName, value string) error {
 	return fmt.Errorf("ismeretlen mező: %q", fieldName)
 }
 
-// ReapplyFields re-applies current editable/const/date field values to all
-// non-MAPPING columns in every loaded row. MAPPING columns are preserved.
+// ReapplyFields re-applies current editable/const/date field values to all non-MAPPING rows.
 func (b *Booking) ReapplyFields() TableDataResult {
 	colIndex := make(map[string]int, len(b.columnNames))
 	for i, name := range b.columnNames {
@@ -234,7 +308,6 @@ func (b *Booking) UpdateCell(rowIndex int, colName, value string) TableDataResul
 	if colIdx >= 0 && rowIndex >= 0 && rowIndex < len(b.rows) {
 		b.rows[rowIndex][colIdx] = value
 	}
-	// Re-validate just this cell: remove old error, add new if any.
 	filtered := b.cellErrors[:0]
 	for _, ce := range b.cellErrors {
 		if ce.RowIndex != rowIndex || ce.ColName != colName {
@@ -242,8 +315,10 @@ func (b *Booking) UpdateCell(rowIndex int, colName, value string) TableDataResul
 		}
 	}
 	b.cellErrors = filtered
-	if ce, bad := validateCellISO88592(rowIndex, colName, value); bad {
-		b.cellErrors = append(b.cellErrors, ce)
+	if !strings.EqualFold(b.settings.Encoding, "UTF-8") {
+		if ce, bad := validateCellISO88592(rowIndex, colName, value); bad {
+			b.cellErrors = append(b.cellErrors, ce)
+		}
 	}
 	return b.buildResult()
 }
@@ -271,12 +346,10 @@ func (b *Booking) ExportToExcel() error {
 	defer f.Close()
 	sheet := "Sheet1"
 
-	// Write header row.
 	for ci, name := range b.columnNames {
 		cell, _ := excelize.CoordinatesToCellName(ci+1, 1)
 		f.SetCellValue(sheet, cell, name)
 	}
-	// Write data rows.
 	for ri, row := range b.rows {
 		for ci, val := range row {
 			cell, _ := excelize.CoordinatesToCellName(ci+1, ri+2)
@@ -313,9 +386,7 @@ func (b *Booking) ImportFromExcel() (TableDataResult, error) {
 		return TableDataResult{}, fmt.Errorf("munkalap olvasási hiba: %w", err)
 	}
 
-	// Row 0 is the header (column names).
 	importCols := allRows[0]
-	// Re-derive column order from what's in the file; missing fields get empty values.
 	importIndex := make(map[string]int, len(importCols))
 	for i, c := range importCols {
 		importIndex[c] = i
@@ -335,9 +406,8 @@ func (b *Booking) ImportFromExcel() (TableDataResult, error) {
 	return b.buildResult(), nil
 }
 
-// SaveCSV writes the Számlázz.hu CSV to a user-chosen file.
-// encoding must be "ISO-8859-2" or "UTF-8".
-func (b *Booking) SaveCSV(encoding string) error {
+// SaveCSV writes the Számlázz.hu CSV using the encoding from settings.
+func (b *Booking) SaveCSV() error {
 	if len(b.cellErrors) > 0 {
 		ce := b.cellErrors[0]
 		return fmt.Errorf("nem menthető: a %d. sor %q oszlopában nem kódolható karakter: %q (pozíció: %d)",
@@ -361,7 +431,7 @@ func (b *Booking) SaveCSV(encoding string) error {
 	defer file.Close()
 
 	var w io.Writer = file
-	if strings.EqualFold(encoding, "ISO-8859-2") {
+	if strings.EqualFold(b.settings.Encoding, "ISO-8859-2") {
 		w = charmap.ISO8859_2.NewEncoder().Writer(file)
 	}
 
@@ -397,7 +467,12 @@ func (b *Booking) getCellByColName(row []string, colName string) string {
 	return ""
 }
 
+// validateAllCells validates every cell against the current encoding.
+// UTF-8 accepts all runes; ISO-8859-2 checks via charmap.
 func (b *Booking) validateAllCells() []CellError {
+	if strings.EqualFold(b.settings.Encoding, "UTF-8") {
+		return nil
+	}
 	var errs []CellError
 	for ri, row := range b.rows {
 		for ci, val := range row {
@@ -435,8 +510,6 @@ func (b *Booking) writeCSV(w io.Writer) error {
 
 // ─── Standalone functions ─────────────────────────────────────────────────────
 
-// validateCellISO88592 returns a CellError and true if any rune in value
-// cannot be encoded in ISO-8859-2.
 func validateCellISO88592(rowIndex int, colName, value string) (CellError, bool) {
 	for pos, r := range value {
 		if _, ok := charmap.ISO8859_2.EncodeRune(r); !ok {
@@ -452,7 +525,6 @@ func validateCellISO88592(rowIndex int, colName, value string) (CellError, bool)
 	return CellError{}, false
 }
 
-// loadTemplate parses the embedded basic_sablon.csv (ISO-8859-2 encoded).
 func loadTemplate(data []byte) (templateData, error) {
 	decoded, err := charmap.ISO8859_2.NewDecoder().Bytes(data)
 	if err != nil {
@@ -475,7 +547,6 @@ func loadTemplate(data []byte) (templateData, error) {
 	return tmpl, scanner.Err()
 }
 
-// parseFieldsYAML parses fields.yaml using yaml.Node to preserve key order.
 func parseFieldsYAML(data []byte) ([]Field, error) {
 	var doc yaml.Node
 	if err := yaml.Unmarshal(data, &doc); err != nil {

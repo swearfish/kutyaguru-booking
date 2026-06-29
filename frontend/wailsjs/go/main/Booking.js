@@ -10,6 +10,10 @@ export function GetFields() {
   return window['go']['main']['Booking']['GetFields']();
 }
 
+export function GetSettings() {
+  return window['go']['main']['Booking']['GetSettings']();
+}
+
 export function GetStatus() {
   return window['go']['main']['Booking']['GetStatus']();
 }
@@ -34,8 +38,16 @@ export function ReapplyFields() {
   return window['go']['main']['Booking']['ReapplyFields']();
 }
 
-export function SaveCSV(arg1) {
-  return window['go']['main']['Booking']['SaveCSV'](arg1);
+export function SaveCSV() {
+  return window['go']['main']['Booking']['SaveCSV']();
+}
+
+export function SaveSettings(arg1) {
+  return window['go']['main']['Booking']['SaveSettings'](arg1);
+}
+
+export function SetEncoding(arg1) {
+  return window['go']['main']['Booking']['SetEncoding'](arg1);
 }
 
 export function UpdateCell(arg1, arg2, arg3) {

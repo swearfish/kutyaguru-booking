@@ -6,6 +6,8 @@ export function ExportToExcel():Promise<void>;
 
 export function GetFields():Promise<Array<main.Field>>;
 
+export function GetSettings():Promise<main.Settings>;
+
 export function GetStatus():Promise<string>;
 
 export function GetTableData():Promise<main.TableDataResult>;
@@ -18,7 +20,11 @@ export function OpenBookedFile():Promise<Array<string>>;
 
 export function ReapplyFields():Promise<main.TableDataResult>;
 
-export function SaveCSV(arg1:string):Promise<void>;
+export function SaveCSV():Promise<void>;
+
+export function SaveSettings(arg1:main.Settings):Promise<void>;
+
+export function SetEncoding(arg1:string):Promise<main.TableDataResult>;
 
 export function UpdateCell(arg1:number,arg2:string,arg3:string):Promise<main.TableDataResult>;
 

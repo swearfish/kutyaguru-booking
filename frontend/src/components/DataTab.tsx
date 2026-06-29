@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { DataGrid, renderTextEditor } from 'react-data-grid'
 import type { Column, RenderCellProps, RowsChangeData } from 'react-data-grid'
-import { Tooltip } from '@mantine/core'
+import { Tooltip, useComputedColorScheme } from '@mantine/core'
 import { main } from '../../wailsjs/go/models'
 import './DataTab.css'
 
@@ -13,6 +13,8 @@ interface Props {
 }
 
 export default function DataTab({ tableData, onCellChange }: Props) {
+  const computedScheme = useComputedColorScheme('light')
+
   const errorMap = useMemo(() => {
     const map = new Map<string, main.CellError>()
     for (const ce of (tableData.cellErrors ?? [])) {
@@ -78,6 +80,7 @@ export default function DataTab({ tableData, onCellChange }: Props) {
 
   return (
     <DataGrid
+      className={computedScheme === 'dark' ? 'rdg-dark' : 'rdg-light'}
       columns={columns}
       rows={rows}
       onRowsChange={handleRowsChange}
