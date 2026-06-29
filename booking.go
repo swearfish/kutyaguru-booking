@@ -37,18 +37,20 @@ const (
 
 // Settings holds user preferences persisted across sessions.
 type Settings struct {
-	ColorScheme string `json:"colorScheme"` // "light" | "dark" | "auto"
-	Encoding    string `json:"encoding"`    // "ISO-8859-2" | "UTF-8"
-	WindowX     int    `json:"windowX"`
-	WindowY     int    `json:"windowY"`
-	WindowW     int    `json:"windowW"`
-	WindowH     int    `json:"windowH"`
+	ColorScheme string            `json:"colorScheme"` // "light" | "dark" | "auto"
+	Encoding    string            `json:"encoding"`    // "ISO-8859-2" | "UTF-8"
+	CharMapping map[string]string `json:"charMapping"` // unicode char → latin-2 replacement
+	WindowX     int               `json:"windowX"`
+	WindowY     int               `json:"windowY"`
+	WindowW     int               `json:"windowW"`
+	WindowH     int               `json:"windowH"`
 }
 
 func defaultSettings() Settings {
 	return Settings{
 		ColorScheme: "auto",
 		Encoding:    "ISO-8859-2",
+		CharMapping: map[string]string{},
 		WindowW:     1280,
 		WindowH:     800,
 	}
@@ -70,6 +72,8 @@ type CellError struct {
 	Value       string `json:"value"`
 	InvalidChar string `json:"invalidChar"`
 	CharPos     int    `json:"charPos"`
+	Mapped      bool   `json:"mapped"`   // true → substitution exists (yellow); false → blocked (red)
+	MappedTo    string `json:"mappedTo"` // replacement string when Mapped==true
 }
 
 // TableDataResult is returned to the frontend whenever the table changes.
@@ -153,6 +157,9 @@ func (b *Booking) loadSettings() Settings {
 	if s.WindowH == 0 {
 		s.WindowH = 800
 	}
+	if s.CharMapping == nil {
+		s.CharMapping = map[string]string{}
+	}
 	return s
 }
 
@@ -182,6 +189,19 @@ func (b *Booking) SaveSettings(s Settings) error {
 // SetEncoding updates the CSV encoding, re-validates all cells, and returns the new table state.
 func (b *Booking) SetEncoding(enc string) TableDataResult {
 	b.settings.Encoding = enc
+	b.cellErrors = b.validateAllCells()
+	return b.buildResult()
+}
+
+// GetCharMapping returns the current unicode→replacement substitution map.
+func (b *Booking) GetCharMapping() map[string]string {
+	return b.settings.CharMapping
+}
+
+// SetCharMapping replaces the substitution map, re-validates all cells, saves settings.
+func (b *Booking) SetCharMapping(m map[string]string) TableDataResult {
+	b.settings.CharMapping = m
+	b.saveSettings()
 	b.cellErrors = b.validateAllCells()
 	return b.buildResult()
 }
@@ -316,7 +336,7 @@ func (b *Booking) UpdateCell(rowIndex int, colName, value string) TableDataResul
 	}
 	b.cellErrors = filtered
 	if !strings.EqualFold(b.settings.Encoding, "UTF-8") {
-		if ce, bad := validateCellISO88592(rowIndex, colName, value); bad {
+		if ce, bad := validateCell(rowIndex, colName, value, b.settings.CharMapping); bad {
 			b.cellErrors = append(b.cellErrors, ce)
 		}
 	}
@@ -408,10 +428,11 @@ func (b *Booking) ImportFromExcel() (TableDataResult, error) {
 
 // SaveCSV writes the Számlázz.hu CSV using the encoding from settings.
 func (b *Booking) SaveCSV() error {
-	if len(b.cellErrors) > 0 {
-		ce := b.cellErrors[0]
-		return fmt.Errorf("nem menthető: a %d. sor %q oszlopában nem kódolható karakter: %q (pozíció: %d)",
-			ce.RowIndex+1, ce.ColName, ce.InvalidChar, ce.CharPos)
+	for _, ce := range b.cellErrors {
+		if !ce.Mapped {
+			return fmt.Errorf("nem menthető: a %d. sor %q oszlopában nem kódolható karakter: %q (pozíció: %d)",
+				ce.RowIndex+1, ce.ColName, ce.InvalidChar, ce.CharPos)
+		}
 	}
 
 	path, err := runtime.SaveFileDialog(b.ctx, runtime.SaveDialogOptions{
@@ -468,7 +489,7 @@ func (b *Booking) getCellByColName(row []string, colName string) string {
 }
 
 // validateAllCells validates every cell against the current encoding.
-// UTF-8 accepts all runes; ISO-8859-2 checks via charmap.
+// UTF-8 accepts all runes; ISO-8859-2 checks via charmap, consulting the char mapping.
 func (b *Booking) validateAllCells() []CellError {
 	if strings.EqualFold(b.settings.Encoding, "UTF-8") {
 		return nil
@@ -476,12 +497,28 @@ func (b *Booking) validateAllCells() []CellError {
 	var errs []CellError
 	for ri, row := range b.rows {
 		for ci, val := range row {
-			if ce, bad := validateCellISO88592(ri, b.columnNames[ci], val); bad {
+			if ce, bad := validateCell(ri, b.columnNames[ci], val, b.settings.CharMapping); bad {
 				errs = append(errs, ce)
 			}
 		}
 	}
 	return errs
+}
+
+// applyMapping substitutes characters in value using the char mapping.
+func (b *Booking) applyMapping(value string) string {
+	if len(b.settings.CharMapping) == 0 {
+		return value
+	}
+	var sb strings.Builder
+	for _, r := range value {
+		if repl, ok := b.settings.CharMapping[string(r)]; ok {
+			sb.WriteString(repl)
+		} else {
+			sb.WriteRune(r)
+		}
+	}
+	return sb.String()
 }
 
 func (b *Booking) writeCSV(w io.Writer) error {
@@ -499,7 +536,7 @@ func (b *Booking) writeCSV(w io.Writer) error {
 		fmt.Fprintf(bw, "%d", num)
 		for _, colDef := range b.tmpl.ColDefLines {
 			for _, colName := range colDef {
-				cell := b.getCellByColName(row, colName)
+				cell := b.applyMapping(b.getCellByColName(row, colName))
 				fmt.Fprintf(bw, "%s;", cell)
 			}
 			fmt.Fprintln(bw)
@@ -510,17 +547,28 @@ func (b *Booking) writeCSV(w io.Writer) error {
 
 // ─── Standalone functions ─────────────────────────────────────────────────────
 
-func validateCellISO88592(rowIndex int, colName, value string) (CellError, bool) {
+// validateCell checks a single cell value against ISO-8859-2, consulting the char mapping.
+// Unmapped invalid chars (red) take priority over mapped ones (yellow).
+func validateCell(rowIndex int, colName, value string, mapping map[string]string) (CellError, bool) {
+	var firstMapped *CellError
 	for pos, r := range value {
-		if _, ok := charmap.ISO8859_2.EncodeRune(r); !ok {
-			return CellError{
-				RowIndex:    rowIndex,
-				ColName:     colName,
-				Value:       value,
-				InvalidChar: string(r),
-				CharPos:     pos,
-			}, true
+		if _, ok := charmap.ISO8859_2.EncodeRune(r); ok {
+			continue
 		}
+		char := string(r)
+		if repl, inMap := mapping[char]; inMap {
+			if firstMapped == nil {
+				ce := CellError{RowIndex: rowIndex, ColName: colName, Value: value,
+					InvalidChar: char, CharPos: pos, Mapped: true, MappedTo: repl}
+				firstMapped = &ce
+			}
+		} else {
+			return CellError{RowIndex: rowIndex, ColName: colName, Value: value,
+				InvalidChar: char, CharPos: pos, Mapped: false}, true
+		}
+	}
+	if firstMapped != nil {
+		return *firstMapped, true
 	}
 	return CellError{}, false
 }

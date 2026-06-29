@@ -6,6 +6,10 @@ export function ExportToExcel() {
   return window['go']['main']['Booking']['ExportToExcel']();
 }
 
+export function GetCharMapping() {
+  return window['go']['main']['Booking']['GetCharMapping']();
+}
+
 export function GetFields() {
   return window['go']['main']['Booking']['GetFields']();
 }
@@ -44,6 +48,10 @@ export function SaveCSV() {
 
 export function SaveSettings(arg1) {
   return window['go']['main']['Booking']['SaveSettings'](arg1);
+}
+
+export function SetCharMapping(arg1) {
+  return window['go']['main']['Booking']['SetCharMapping'](arg1);
 }
 
 export function SetEncoding(arg1) {

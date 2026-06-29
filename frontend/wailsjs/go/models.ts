@@ -6,6 +6,8 @@ export namespace main {
 	    value: string;
 	    invalidChar: string;
 	    charPos: number;
+	    mapped: boolean;
+	    mappedTo: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new CellError(source);
@@ -18,6 +20,8 @@ export namespace main {
 	        this.value = source["value"];
 	        this.invalidChar = source["invalidChar"];
 	        this.charPos = source["charPos"];
+	        this.mapped = source["mapped"];
+	        this.mappedTo = source["mappedTo"];
 	    }
 	}
 	export class Field {
@@ -43,6 +47,7 @@ export namespace main {
 	export class Settings {
 	    colorScheme: string;
 	    encoding: string;
+	    charMapping: Record<string, string>;
 	    windowX: number;
 	    windowY: number;
 	    windowW: number;
@@ -56,6 +61,7 @@ export namespace main {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.colorScheme = source["colorScheme"];
 	        this.encoding = source["encoding"];
+	        this.charMapping = source["charMapping"];
 	        this.windowX = source["windowX"];
 	        this.windowY = source["windowY"];
 	        this.windowW = source["windowW"];

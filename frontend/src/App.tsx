@@ -16,17 +16,19 @@ import {
   GetSettings,
   SaveSettings,
   SetEncoding,
+  SetCharMapping,
 } from '../wailsjs/go/main/Booking'
 import Toolbar from './components/Toolbar'
 import DataTab from './components/DataTab'
 import FieldsTab from './components/FieldsTab'
+import MappingTab from './components/MappingTab'
 import StatusBar from './components/StatusBar'
 import NavSidebar from './components/NavSidebar'
 import SheetTabs from './components/SheetTabs'
 
 const emptyTable: main.TableDataResult = new main.TableDataResult({ columns: [], rows: [], cellErrors: [] })
 
-type View = 'table' | 'fields'
+type View = 'table' | 'fields' | 'mapping'
 type ColorScheme = 'light' | 'dark' | 'auto'
 
 export default function App() {
@@ -40,6 +42,7 @@ export default function App() {
   const [status, setStatus] = useState<string>('')
   const [colorScheme, setColorScheme] = useState<ColorScheme>('auto')
   const [encoding, setEncoding] = useState<string>('ISO-8859-2')
+  const [charMapping, setCharMapping] = useState<Record<string, string>>({})
 
   // Load persisted settings on mount.
   useEffect(() => {
@@ -48,6 +51,7 @@ export default function App() {
       setColorScheme(scheme)
       mantineSetColorScheme(scheme)
       setEncoding(s.encoding || 'ISO-8859-2')
+      setCharMapping(s.charMapping || {})
     })
   }, [])
 
@@ -142,11 +146,27 @@ export default function App() {
       const settings = new main.Settings({
         colorScheme: s,
         encoding,
+        charMapping,
         windowX: 0, windowY: 0, windowW: 0, windowH: 0,
       })
       await SaveSettings(settings)
     } catch { /* non-critical */ }
-  }, [encoding])
+  }, [encoding, charMapping])
+
+  const handleSetCharMapping = useCallback(async (m: Record<string, string>) => {
+    setCharMapping(m)
+    try {
+      const result = await SetCharMapping(m)
+      setTableData(result)
+    } catch (err: any) {
+      notifications.show({ color: 'red', title: 'Hiba', message: String(err) })
+    }
+  }, [])
+
+  const handleAddToMapping = useCallback((char: string) => {
+    const m = { ...charMapping, [char]: '-' }
+    handleSetCharMapping(m)
+  }, [charMapping, handleSetCharMapping])
 
   const handleEncodingChange = useCallback(async (enc: string) => {
     setEncoding(enc)
@@ -156,13 +176,14 @@ export default function App() {
       const settings = new main.Settings({
         colorScheme,
         encoding: enc,
+        charMapping,
         windowX: 0, windowY: 0, windowW: 0, windowH: 0,
       })
       await SaveSettings(settings)
     } catch (err: any) {
       notifications.show({ color: 'red', title: 'Hiba', message: String(err) })
     }
-  }, [colorScheme])
+  }, [colorScheme, charMapping])
 
   return (
     <AppShell
@@ -193,17 +214,30 @@ export default function App() {
       </AppShell.Navbar>
 
       <AppShell.Main style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <div style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
-          {view === 'table'
-            ? <DataTab tableData={tableData} onCellChange={handleCellChange} />
-            : <FieldsTab fields={fields} onFieldChange={handleFieldChange} />
-          }
-        </div>
-        <SheetTabs
-          sheets={sheetNames}
-          selected={selectedSheet}
-          onChange={handleSheetChange}
-        />
+        {view === 'table' && (
+          <div style={{ flex: 1, overflow: 'hidden', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+            <div style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
+              <DataTab tableData={tableData} onCellChange={handleCellChange} onAddToMapping={handleAddToMapping} charMapping={charMapping} />
+            </div>
+            <SheetTabs sheets={sheetNames} selected={selectedSheet} onChange={handleSheetChange} />
+          </div>
+        )}
+        {view === 'fields' && (
+          <div style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
+            <FieldsTab fields={fields} onFieldChange={handleFieldChange} />
+          </div>
+        )}
+        {view === 'mapping' && (
+          <div style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
+            <MappingTab
+              charMapping={charMapping}
+              unmappedChars={[...new Set(
+                tableData.cellErrors.filter(ce => !ce.mapped).map(ce => ce.invalidChar)
+              )]}
+              onChange={handleSetCharMapping}
+            />
+          </div>
+        )}
       </AppShell.Main>
 
       <AppShell.Footer>

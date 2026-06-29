@@ -1,6 +1,6 @@
 import { ActionIcon, Popover, SegmentedControl, Stack, Text, Tooltip } from '@mantine/core'
 
-type View = 'table' | 'fields'
+type View = 'table' | 'fields' | 'mapping'
 
 interface Props {
   view: View
@@ -39,8 +39,19 @@ export default function NavSidebar({ view, onViewChange, colorScheme, encoding, 
           variant={view === 'fields' ? 'filled' : 'subtle'}
           size="xl"
           onClick={() => onViewChange('fields')}
+          mb={4}
         >
           🗂
+        </ActionIcon>
+      </Tooltip>
+
+      <Tooltip label="Karakter térkép" position="right" withArrow>
+        <ActionIcon
+          variant={view === 'mapping' ? 'filled' : 'subtle'}
+          size="xl"
+          onClick={() => onViewChange('mapping')}
+        >
+          🔤
         </ActionIcon>
       </Tooltip>
 

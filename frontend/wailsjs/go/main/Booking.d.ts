@@ -4,6 +4,8 @@ import {main} from '../models';
 
 export function ExportToExcel():Promise<void>;
 
+export function GetCharMapping():Promise<Record<string, string>>;
+
 export function GetFields():Promise<Array<main.Field>>;
 
 export function GetSettings():Promise<main.Settings>;
@@ -23,6 +25,8 @@ export function ReapplyFields():Promise<main.TableDataResult>;
 export function SaveCSV():Promise<void>;
 
 export function SaveSettings(arg1:main.Settings):Promise<void>;
+
+export function SetCharMapping(arg1:Record<string, string>):Promise<main.TableDataResult>;
 
 export function SetEncoding(arg1:string):Promise<main.TableDataResult>;
 

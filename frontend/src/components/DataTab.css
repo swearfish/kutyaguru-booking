@@ -1,6 +1,13 @@
-/* Error cell: red border drawn on the cell boundary (over gridlines), not inside the padded content. */
+/* Error cell: red border — no mapping exists, export blocked. */
 .rdg-cell.errorCell {
   box-shadow: inset 0 0 0 2px rgba(220, 38, 38, 0.95);
   background-color: rgba(220, 38, 38, 0.15);
+  z-index: 1;
+}
+
+/* Mapped cell: yellow border — will be substituted on export. */
+.rdg-cell.mappedCell {
+  box-shadow: inset 0 0 0 2px rgba(234, 179, 8, 0.9);
+  background-color: rgba(234, 179, 8, 0.12);
   z-index: 1;
 }

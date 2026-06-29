@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { DataGrid, renderTextEditor } from 'react-data-grid'
 import type { Column, RenderCellProps, RowsChangeData } from 'react-data-grid'
-import { Tooltip, useComputedColorScheme } from '@mantine/core'
+import { ActionIcon, Tooltip, useComputedColorScheme } from '@mantine/core'
 import { main } from '../../wailsjs/go/models'
 import './DataTab.css'
 
@@ -10,17 +10,30 @@ type GridRow = Record<string, string | number> & { __rowIndex: number }
 interface Props {
   tableData: main.TableDataResult
   onCellChange: (rowIndex: number, colName: string, value: string) => void
+  onAddToMapping: (char: string) => void
+  charMapping: Record<string, string>
 }
 
-export default function DataTab({ tableData, onCellChange }: Props) {
+function applyMapping(value: string, mapping: Record<string, string>): string {
+  if (Object.keys(mapping).length === 0) return value
+  return [...value].map(ch => mapping[ch] ?? ch).join('')
+}
+
+export default function DataTab({ tableData, onCellChange, onAddToMapping, charMapping }: Props) {
   const computedScheme = useComputedColorScheme('light')
 
-  const errorMap = useMemo(() => {
-    const map = new Map<string, main.CellError>()
+  const { errorMap, mappedMap } = useMemo(() => {
+    const errorMap = new Map<string, main.CellError>()
+    const mappedMap = new Map<string, main.CellError>()
     for (const ce of (tableData.cellErrors ?? [])) {
-      map.set(`${ce.rowIndex}:${ce.colName}`, ce)
+      const key = `${ce.rowIndex}:${ce.colName}`
+      if (ce.mapped) {
+        mappedMap.set(key, ce)
+      } else {
+        errorMap.set(key, ce)
+      }
     }
-    return map
+    return { errorMap, mappedMap }
   }, [tableData.cellErrors])
 
   const columns = useMemo<Column<GridRow>[]>(() => {
@@ -31,15 +44,43 @@ export default function DataTab({ tableData, onCellChange }: Props) {
       resizable: true,
       width: 150,
       renderEditCell: renderTextEditor,
-      cellClass: (row: GridRow) =>
-        errorMap.has(`${row.__rowIndex}:${colName}`) ? 'errorCell' : undefined,
+      cellClass: (row: GridRow) => {
+        const key = `${row.__rowIndex}:${colName}`
+        if (errorMap.has(key)) return 'errorCell'
+        if (mappedMap.has(key)) return 'mappedCell'
+        return undefined
+      },
       renderCell: (props: RenderCellProps<GridRow>) => {
-        const err = errorMap.get(`${props.row.__rowIndex}:${colName}`)
+        const key = `${props.row.__rowIndex}:${colName}`
         const cellValue = String(props.row[colName] ?? '')
+        const err = errorMap.get(key)
+        const mapped = mappedMap.get(key)
         if (err) {
           return (
             <Tooltip
-              label={`Nem kódolható karakter: "${err.invalidChar}" (pozíció: ${err.charPos})`}
+              label={`Nem kódolható: "${err.invalidChar}"`}
+              withArrow
+            >
+              <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>{cellValue}</span>
+                <ActionIcon
+                  size="xs"
+                  variant="subtle"
+                  color="red"
+                  title="Hozzáadás a karakter térképhez"
+                  onClick={e => { e.stopPropagation(); onAddToMapping(err.invalidChar) }}
+                >
+                  ➕
+                </ActionIcon>
+              </div>
+            </Tooltip>
+          )
+        }
+        if (mapped) {
+          const exported = applyMapping(cellValue, charMapping)
+          return (
+            <Tooltip
+              label={`Exportáláskor: "${exported}"`}
               withArrow
             >
               <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center' }}>
@@ -51,7 +92,7 @@ export default function DataTab({ tableData, onCellChange }: Props) {
         return <>{cellValue}</>
       },
     }))
-  }, [tableData.columns, errorMap])
+  }, [tableData.columns, errorMap, mappedMap, charMapping])
 
   const rows = useMemo<GridRow[]>(() => {
     return (tableData.rows ?? []).map((row, rowIndex) => {
