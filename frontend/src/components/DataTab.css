@@ -18,3 +18,12 @@
   background-color: rgba(249, 115, 22, 0.12);
   z-index: 1;
 }
+
+/* Disabled row: dimmed and excluded from CSV export. The frozen toggle cell
+   (first column, aria-colindex="1") stays fully legible so it can be re-enabled. */
+.rdg-row.disabledRow .rdg-cell {
+  opacity: 0.45;
+}
+.rdg-row.disabledRow .rdg-cell[aria-colindex="1"] {
+  opacity: 1;
+}

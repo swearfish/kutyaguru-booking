@@ -235,6 +235,7 @@ export class Settings {
 export class TableDataResult {
     "columns": string[];
     "rows": string[][];
+    "rowEnabled": boolean[];
     "cellErrors": CellError[];
 
     /** Creates a new TableDataResult instance. */
@@ -244,6 +245,9 @@ export class TableDataResult {
         }
         if (!("rows" in $$source)) {
             this["rows"] = [];
+        }
+        if (!("rowEnabled" in $$source)) {
+            this["rowEnabled"] = [];
         }
         if (!("cellErrors" in $$source)) {
             this["cellErrors"] = [];
@@ -258,7 +262,8 @@ export class TableDataResult {
     static createFrom($$source: any = {}): TableDataResult {
         const $$createField0_0 = $$createType0;
         const $$createField1_0 = $$createType2;
-        const $$createField2_0 = $$createType4;
+        const $$createField2_0 = $$createType3;
+        const $$createField3_0 = $$createType5;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("columns" in $$parsedSource) {
             $$parsedSource["columns"] = $$createField0_0($$parsedSource["columns"]);
@@ -266,8 +271,11 @@ export class TableDataResult {
         if ("rows" in $$parsedSource) {
             $$parsedSource["rows"] = $$createField1_0($$parsedSource["rows"]);
         }
+        if ("rowEnabled" in $$parsedSource) {
+            $$parsedSource["rowEnabled"] = $$createField2_0($$parsedSource["rowEnabled"]);
+        }
         if ("cellErrors" in $$parsedSource) {
-            $$parsedSource["cellErrors"] = $$createField2_0($$parsedSource["cellErrors"]);
+            $$parsedSource["cellErrors"] = $$createField3_0($$parsedSource["cellErrors"]);
         }
         return new TableDataResult($$parsedSource as Partial<TableDataResult>);
     }
@@ -277,5 +285,6 @@ export class TableDataResult {
 const $$createType0 = $Create.Array($Create.Any);
 const $$createType1 = $Create.Map($Create.Any, $Create.Any);
 const $$createType2 = $Create.Array($$createType0);
-const $$createType3 = CellError.createFrom;
-const $$createType4 = $Create.Array($$createType3);
+const $$createType3 = $Create.Array($Create.Any);
+const $$createType4 = CellError.createFrom;
+const $$createType5 = $Create.Array($$createType4);

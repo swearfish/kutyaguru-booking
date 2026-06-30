@@ -14,6 +14,8 @@ const {
   UpdateFieldValue,
   ReapplyFields,
   UpdateCell,
+  SetRowEnabled,
+  SetAllRowsEnabled,
   ExportToExcel,
   ImportFromExcel,
   SaveCSV,
@@ -91,11 +93,14 @@ export default function App() {
   const { errorCount, warningCount } = useMemo(() => {
     let errorCount = 0, warningCount = 0
     for (const ce of (tableData.cellErrors ?? [])) {
+      // Disabled rows aren't exported, so their issues don't count toward the
+      // status bar (and no longer block CSV export — keep the two consistent).
+      if ((tableData.rowEnabled ?? [])[ce.rowIndex] === false) continue
       if (ce.severity === 'error') errorCount++
       else if (ce.severity === 'warning') warningCount++
     }
     return { errorCount, warningCount }
-  }, [tableData.cellErrors])
+  }, [tableData.cellErrors, tableData.rowEnabled])
 
   const loadFirstSheet = useCallback(async (sheets: string[]) => {
     setSheetNames(sheets)
@@ -172,6 +177,24 @@ export default function App() {
   const handleCellChange = useCallback(async (rowIndex: number, colName: string, value: string) => {
     try {
       const result = await UpdateCell(rowIndex, colName, value)
+      setTableData(result)
+    } catch (err: any) {
+      notifications.show({ color: 'red', title: 'Hiba', message: String(err) })
+    }
+  }, [])
+
+  const handleToggleRow = useCallback(async (rowIndex: number, enabled: boolean) => {
+    try {
+      const result = await SetRowEnabled(rowIndex, enabled)
+      setTableData(result)
+    } catch (err: any) {
+      notifications.show({ color: 'red', title: 'Hiba', message: String(err) })
+    }
+  }, [])
+
+  const handleToggleAll = useCallback(async (enabled: boolean) => {
+    try {
+      const result = await SetAllRowsEnabled(enabled)
       setTableData(result)
     } catch (err: any) {
       notifications.show({ color: 'red', title: 'Hiba', message: String(err) })
@@ -303,7 +326,7 @@ export default function App() {
         {view === 'table' && (
           <div style={{ flex: 1, overflow: 'hidden', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
             <div style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
-              <DataTab tableData={tableData} onCellChange={handleCellChange} onAddToMapping={handleAddToMapping} charMapping={charMapping} />
+              <DataTab tableData={tableData} onCellChange={handleCellChange} onAddToMapping={handleAddToMapping} onToggleRow={handleToggleRow} onToggleAll={handleToggleAll} charMapping={charMapping} />
             </div>
             <SheetTabs sheets={sheetNames} selected={selectedSheet} onChange={handleSheetChange} />
           </div>

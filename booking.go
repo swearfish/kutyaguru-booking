@@ -46,6 +46,11 @@ const (
 	colQuantity = "Mennyiség"
 )
 
+// colEnabledHeader is the extra column appended to Excel exports that records
+// each row's on/off state ("1"/"0"), so an export → re-import round-trip
+// restores the toggles. Plain Booked4us files lack it ⇒ all rows enabled.
+const colEnabledHeader = "_Aktív"
+
 // CellError severities (also used as the CSS class selector on the frontend).
 const (
 	severityError   = "error"   // red: blocks export (encoding cannot represent the char)
@@ -108,6 +113,7 @@ type CellError struct {
 type TableDataResult struct {
 	Columns    []string    `json:"columns"`
 	Rows       [][]string  `json:"rows"`
+	RowEnabled []bool      `json:"rowEnabled"`
 	CellErrors []CellError `json:"cellErrors"`
 }
 
@@ -132,6 +138,7 @@ type Booking struct {
 	fields       []Field
 	columnNames  []string
 	rows         [][]string
+	rowEnabled   []bool // parallel to rows; true = included in CSV export. In-memory only.
 	tmpl         templateData
 	excelPath    string
 	cellErrors   []CellError
@@ -391,6 +398,7 @@ func (b *Booking) LoadSheet(sheetName string) (TableDataResult, error) {
 	}
 	if len(allRows) == 0 {
 		b.rows = nil
+		b.rowEnabled = nil
 		b.cellErrors = nil
 		return b.buildResult(), nil
 	}
@@ -416,6 +424,7 @@ func (b *Booking) LoadSheet(sheetName string) (TableDataResult, error) {
 		}
 		b.rows = append(b.rows, row)
 	}
+	b.rowEnabled = newEnabledSlice(len(b.rows))
 
 	b.applyServicePrices()
 	b.cellErrors = b.validateAllCells()
@@ -490,6 +499,52 @@ func (b *Booking) UpdateCell(rowIndex int, colName, value string) TableDataResul
 	return b.buildResult()
 }
 
+// SetRowEnabled toggles whether a single row is included in CSV export.
+func (b *Booking) SetRowEnabled(rowIndex int, enabled bool) TableDataResult {
+	if rowIndex >= 0 && rowIndex < len(b.rows) {
+		b.ensureRowEnabled()
+		b.rowEnabled[rowIndex] = enabled
+	}
+	return b.buildResult()
+}
+
+// SetAllRowsEnabled toggles every row on or off (select-all / select-none).
+func (b *Booking) SetAllRowsEnabled(enabled bool) TableDataResult {
+	b.rowEnabled = make([]bool, len(b.rows))
+	for i := range b.rowEnabled {
+		b.rowEnabled[i] = enabled
+	}
+	return b.buildResult()
+}
+
+// newEnabledSlice returns a length-n slice with every row enabled. (make([]bool,n)
+// is all-false, so the flags must be set explicitly.)
+func newEnabledSlice(n int) []bool {
+	s := make([]bool, n)
+	for i := range s {
+		s[i] = true
+	}
+	return s
+}
+
+// rowIsEnabled reports whether row i is included in export. A nil or too-short
+// rowEnabled (e.g. tests that assign b.rows directly) counts as enabled, so no
+// path can panic or silently drop every row.
+func (b *Booking) rowIsEnabled(i int) bool {
+	return i >= len(b.rowEnabled) || b.rowEnabled[i]
+}
+
+// ensureRowEnabled (re)sizes rowEnabled to match len(b.rows), preserving existing
+// flags and defaulting any new entries to enabled.
+func (b *Booking) ensureRowEnabled() {
+	if len(b.rowEnabled) == len(b.rows) {
+		return
+	}
+	next := newEnabledSlice(len(b.rows))
+	copy(next, b.rowEnabled)
+	b.rowEnabled = next
+}
+
 // GetTableData returns the current in-memory table.
 func (b *Booking) GetTableData() TableDataResult {
 	return b.buildResult()
@@ -507,25 +562,43 @@ func (b *Booking) ExportToExcel() (bool, error) {
 	if err != nil || path == "" {
 		return false, err
 	}
+	if err := b.writeExcelTo(path); err != nil {
+		return false, err
+	}
+	return true, nil
+}
 
+// writeExcelTo writes all rows plus the trailing on/off flag column to an xlsx
+// file. All rows are written (Excel is a working-data save); the flag column
+// records each row's state so a re-import restores the toggles.
+func (b *Booking) writeExcelTo(path string) error {
 	f := excelize.NewFile()
 	defer f.Close()
 	sheet := "Sheet1"
 
+	// Header row: the data columns, then the trailing on/off flag column.
 	for ci, name := range b.columnNames {
 		cell, _ := excelize.CoordinatesToCellName(ci+1, 1)
 		f.SetCellValue(sheet, cell, name)
+	}
+	flagCol := len(b.columnNames) + 1
+	if cell, err := excelize.CoordinatesToCellName(flagCol, 1); err == nil {
+		f.SetCellValue(sheet, cell, colEnabledHeader)
 	}
 	for ri, row := range b.rows {
 		for ci, val := range row {
 			cell, _ := excelize.CoordinatesToCellName(ci+1, ri+2)
 			f.SetCellValue(sheet, cell, val)
 		}
+		flag := "0"
+		if b.rowIsEnabled(ri) {
+			flag = "1"
+		}
+		if cell, err := excelize.CoordinatesToCellName(flagCol, ri+2); err == nil {
+			f.SetCellValue(sheet, cell, flag)
+		}
 	}
-	if err := f.SaveAs(path); err != nil {
-		return false, err
-	}
-	return true, nil
+	return f.SaveAs(path)
 }
 
 // ImportFromExcel loads rows from a previously exported xlsx file.
@@ -538,20 +611,29 @@ func (b *Booking) ImportFromExcel() (TableDataResult, error) {
 	if err != nil || path == "" {
 		return b.buildResult(), err
 	}
+	if err := b.readExcelFrom(path); err != nil {
+		return TableDataResult{}, err
+	}
+	return b.buildResult(), nil
+}
 
+// readExcelFrom replaces b.rows / b.rowEnabled / b.cellErrors from an xlsx file.
+// The flag column (colEnabledHeader) is matched by name and is not a data column,
+// so it never leaks into b.columnNames / b.rows. Files without it load as all-on.
+func (b *Booking) readExcelFrom(path string) error {
 	f, err := excelize.OpenFile(path, excelize.Options{RawCellValue: false})
 	if err != nil {
-		return TableDataResult{}, fmt.Errorf("nem sikerült megnyitni: %w", err)
+		return fmt.Errorf("nem sikerült megnyitni: %w", err)
 	}
 	defer f.Close()
 
 	sheets := f.GetSheetList()
 	if len(sheets) == 0 {
-		return TableDataResult{}, fmt.Errorf("üres munkafüzet")
+		return fmt.Errorf("üres munkafüzet")
 	}
 	allRows, err := f.GetRows(sheets[0])
 	if err != nil || len(allRows) == 0 {
-		return TableDataResult{}, fmt.Errorf("munkalap olvasási hiba: %w", err)
+		return fmt.Errorf("munkalap olvasási hiba: %w", err)
 	}
 
 	importCols := allRows[0]
@@ -559,8 +641,10 @@ func (b *Booking) ImportFromExcel() (TableDataResult, error) {
 	for i, c := range importCols {
 		importIndex[c] = i
 	}
+	enabledIdx, hasEnabled := importIndex[colEnabledHeader]
 
 	b.rows = make([][]string, 0, len(allRows)-1)
+	b.rowEnabled = make([]bool, 0, len(allRows)-1)
 	for _, dataRow := range allRows[1:] {
 		row := make([]string, len(b.columnNames))
 		for ci, name := range b.columnNames {
@@ -569,20 +653,24 @@ func (b *Booking) ImportFromExcel() (TableDataResult, error) {
 			}
 		}
 		b.rows = append(b.rows, row)
+		// A row is enabled unless the flag column explicitly says "0". Files
+		// without the flag column (plain Booked4us exports) load as all-on.
+		enabled := true
+		if hasEnabled && enabledIdx < len(dataRow) {
+			enabled = strings.TrimSpace(dataRow[enabledIdx]) != "0"
+		}
+		b.rowEnabled = append(b.rowEnabled, enabled)
 	}
 	b.cellErrors = b.validateAllCells()
-	return b.buildResult(), nil
+	return nil
 }
 
 // SaveCSV writes the Számlázz.hu CSV using the encoding from settings.
 // SaveCSV returns true when a file was written, false when the user cancelled
 // the dialog (so the frontend can skip the success notification).
 func (b *Booking) SaveCSV() (bool, error) {
-	for _, ce := range b.cellErrors {
-		if ce.Severity == severityError {
-			return false, fmt.Errorf("nem menthető: a %d. sor %q oszlopában nem kódolható karakter: %q (pozíció: %d)",
-				ce.RowIndex+1, ce.ColName, ce.InvalidChar, ce.CharPos)
-		}
+	if err := b.blockingExportError(); err != nil {
+		return false, err
 	}
 
 	path, err := b.app.Dialog.SaveFile().
@@ -639,7 +727,14 @@ func (b *Booking) buildResult() TableDataResult {
 	}
 	errs := make([]CellError, len(b.cellErrors))
 	copy(errs, b.cellErrors)
-	return TableDataResult{Columns: cols, Rows: rows, CellErrors: errs}
+	// Synthesize a fresh, full-length, non-nil slice so the frontend can index it
+	// directly (len == len(rows)) and it marshals to [] not null. Missing/short
+	// b.rowEnabled defaults to enabled.
+	enabled := make([]bool, len(b.rows))
+	for i := range enabled {
+		enabled[i] = i >= len(b.rowEnabled) || b.rowEnabled[i]
+	}
+	return TableDataResult{Columns: cols, Rows: rows, RowEnabled: enabled, CellErrors: errs}
 }
 
 func (b *Booking) getCellByColName(row []string, colName string) string {
@@ -761,6 +856,19 @@ func (b *Booking) applyMapping(value string) string {
 	return sb.String()
 }
 
+// blockingExportError returns a non-nil error if any ENABLED row has an
+// un-encodable cell, which must block CSV export. Errors in disabled rows are
+// ignored because those rows aren't written. Returns nil when export may proceed.
+func (b *Booking) blockingExportError() error {
+	for _, ce := range b.cellErrors {
+		if ce.Severity == severityError && b.rowIsEnabled(ce.RowIndex) {
+			return fmt.Errorf("nem menthető: a %d. sor %q oszlopában nem kódolható karakter: %q (pozíció: %d)",
+				ce.RowIndex+1, ce.ColName, ce.InvalidChar, ce.CharPos)
+		}
+	}
+	return nil
+}
+
 func (b *Booking) writeCSV(w io.Writer) error {
 	bw := bufio.NewWriter(w)
 	defer bw.Flush()
@@ -771,8 +879,12 @@ func (b *Booking) writeCSV(w io.Writer) error {
 	for _, colDef := range b.tmpl.ColDefLines {
 		fmt.Fprintln(bw, strings.Join(colDef, ";"))
 	}
+	num := 0
 	for i, row := range b.rows {
-		num := i + 1
+		if !b.rowIsEnabled(i) {
+			continue
+		}
+		num++
 		fmt.Fprintf(bw, "%d", num)
 		for _, colDef := range b.tmpl.ColDefLines {
 			for _, colName := range colDef {

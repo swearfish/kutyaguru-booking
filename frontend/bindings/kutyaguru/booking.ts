@@ -155,6 +155,15 @@ export function SaveSettings(s: $models.Settings): $CancellablePromise<void> {
 }
 
 /**
+ * SetAllRowsEnabled toggles every row on or off (select-all / select-none).
+ */
+export function SetAllRowsEnabled(enabled: boolean): $CancellablePromise<$models.TableDataResult> {
+    return $Call.ByID(4222319800, enabled).then(($result: any) => {
+        return $$createType5($result);
+    });
+}
+
+/**
  * SetCharMapping replaces the substitution map, re-validates all cells, saves settings.
  */
 export function SetCharMapping(m: { [_ in string]?: string }): $CancellablePromise<$models.TableDataResult> {
@@ -176,6 +185,15 @@ export function SetColorScheme(scheme: string): $CancellablePromise<void> {
  */
 export function SetEncoding(enc: string): $CancellablePromise<$models.TableDataResult> {
     return $Call.ByID(3543820506, enc).then(($result: any) => {
+        return $$createType5($result);
+    });
+}
+
+/**
+ * SetRowEnabled toggles whether a single row is included in CSV export.
+ */
+export function SetRowEnabled(rowIndex: number, enabled: boolean): $CancellablePromise<$models.TableDataResult> {
+    return $Call.ByID(3711206202, rowIndex, enabled).then(($result: any) => {
         return $$createType5($result);
     });
 }

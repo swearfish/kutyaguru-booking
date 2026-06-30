@@ -11,6 +11,8 @@ interface Props {
   tableData: main.TableDataResult
   onCellChange: (rowIndex: number, colName: string, value: string) => void
   onAddToMapping: (char: string) => void
+  onToggleRow: (rowIndex: number, enabled: boolean) => void
+  onToggleAll: (enabled: boolean) => void
   charMapping: Record<string, string>
 }
 
@@ -19,7 +21,7 @@ function applyMapping(value: string, mapping: Record<string, string>): string {
   return [...value].map(ch => mapping[ch] ?? ch).join('')
 }
 
-export default function DataTab({ tableData, onCellChange, onAddToMapping, charMapping }: Props) {
+export default function DataTab({ tableData, onCellChange, onAddToMapping, onToggleRow, onToggleAll, charMapping }: Props) {
   const computedScheme = useComputedColorScheme('light')
 
   const { errorMap, mappedMap, warnMap } = useMemo(() => {
@@ -40,7 +42,48 @@ export default function DataTab({ tableData, onCellChange, onAddToMapping, charM
   }, [tableData.cellErrors])
 
   const columns = useMemo<Column<GridRow>[]>(() => {
-    return tableData.columns.map(colName => ({
+    const total = (tableData.rows ?? []).length
+    let onCount = 0
+    for (let i = 0; i < total; i++) {
+      if (tableData.rowEnabled?.[i] ?? true) onCount++
+    }
+    const allOn = total > 0 && onCount === total
+    const someOn = onCount > 0 && onCount < total
+    const enabledColumn: Column<GridRow> = {
+      key: '__enabled',
+      name: '',
+      width: 40,
+      minWidth: 40,
+      maxWidth: 40,
+      frozen: true,
+      editable: false,
+      resizable: false,
+      cellClass: undefined,
+      renderHeaderCell: () => (
+        <input
+          type="checkbox"
+          aria-label="Összes sor ki/be kapcsolása"
+          title="Összes sor ki/be"
+          checked={allOn}
+          ref={el => { if (el) el.indeterminate = someOn }}
+          onChange={e => onToggleAll(e.target.checked)}
+        />
+      ),
+      renderCell: (props: RenderCellProps<GridRow>) => {
+        const idx = props.row.__rowIndex
+        const checked = tableData.rowEnabled?.[idx] ?? true
+        return (
+          <input
+            type="checkbox"
+            aria-label="Sor ki/be kapcsolása"
+            checked={checked}
+            onClick={e => e.stopPropagation()}
+            onChange={e => onToggleRow(idx, e.target.checked)}
+          />
+        )
+      },
+    }
+    const dataCols = tableData.columns.map(colName => ({
       key: colName,
       name: colName,
       editable: true,
@@ -106,7 +149,8 @@ export default function DataTab({ tableData, onCellChange, onAddToMapping, charM
         return <>{cellValue}</>
       },
     }))
-  }, [tableData.columns, errorMap, mappedMap, warnMap, charMapping])
+    return [enabledColumn, ...dataCols]
+  }, [tableData.columns, tableData.rows, tableData.rowEnabled, errorMap, mappedMap, warnMap, charMapping, onToggleRow, onToggleAll])
 
   const rows = useMemo<GridRow[]>(() => {
     return (tableData.rows ?? []).map((row, rowIndex) => {
@@ -120,6 +164,7 @@ export default function DataTab({ tableData, onCellChange, onAddToMapping, charM
 
   function handleRowsChange(newRows: GridRow[], data: RowsChangeData<GridRow>) {
     const colName = data.column.key
+    if (colName === '__enabled') return
     for (const rowIdx of data.indexes) {
       onCellChange(rowIdx, colName, String(newRows[rowIdx][colName] ?? ''))
     }
@@ -138,6 +183,8 @@ export default function DataTab({ tableData, onCellChange, onAddToMapping, charM
       className={computedScheme === 'dark' ? 'rdg-dark' : 'rdg-light'}
       columns={columns}
       rows={rows}
+      rowKeyGetter={(row: GridRow) => row.__rowIndex}
+      rowClass={(row: GridRow) => (tableData.rowEnabled?.[row.__rowIndex] === false ? 'disabledRow' : undefined)}
       onRowsChange={handleRowsChange}
       style={{ height: '100%', blockSize: '100%' }}
     />
