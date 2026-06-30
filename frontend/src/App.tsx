@@ -2,8 +2,11 @@ import { useState, useCallback, useEffect, useMemo } from 'react'
 import { AppShell, Code, Modal, ScrollArea, SegmentedControl, Table, useMantineColorScheme } from '@mantine/core'
 import { useDisclosure } from '@mantine/hooks'
 import { notifications } from '@mantine/notifications'
-import { main } from '../wailsjs/go/models'
-import {
+import * as main from '../bindings/kutyaguru'
+// Wails v3 namespaces service methods under `Booking`; destructure them so the
+// existing call sites stay unchanged, and keep the `main.*` alias for models
+// (TableDataResult, Field, …) which the root index re-exports.
+const {
   OpenBookedFile,
   LoadRecentFile,
   LoadSheet,
@@ -22,7 +25,7 @@ import {
   SetEncoding,
   SetCharMapping,
   SetServicePrices,
-} from '../wailsjs/go/main/Booking'
+} = main.Booking
 import Toolbar from './components/Toolbar'
 import DataTab from './components/DataTab'
 import FieldsTab from './components/FieldsTab'
@@ -65,8 +68,10 @@ export default function App() {
       setColorScheme(scheme)
       mantineSetColorScheme(scheme)
       setEncoding(s.encoding || 'ISO-8859-2')
-      setCharMapping(s.charMapping || {})
-      setServicePrices(s.servicePrices || {})
+      // v3 binds Go map[string]string as { [k: string]?: string }; the backend
+      // never emits undefined values, so narrow to Record<string, string>.
+      setCharMapping((s.charMapping ?? {}) as Record<string, string>)
+      setServicePrices((s.servicePrices ?? {}) as Record<string, string>)
       setRecentFiles(s.recentFiles || [])
     })
   }, [])
@@ -139,8 +144,8 @@ export default function App() {
 
   const handleExportExcel = useCallback(async () => {
     try {
-      await ExportToExcel()
-      notifications.show({ color: 'green', message: 'Excel fájl sikeresen mentve.' })
+      const saved = await ExportToExcel()
+      if (saved) notifications.show({ color: 'green', message: 'Excel fájl sikeresen mentve.' })
     } catch (err: any) {
       if (err) notifications.show({ color: 'red', title: 'Hiba', message: String(err) })
     }
@@ -157,8 +162,8 @@ export default function App() {
 
   const handleSaveCSV = useCallback(async () => {
     try {
-      await SaveCSV()
-      notifications.show({ color: 'green', message: 'CSV sikeresen mentve.' })
+      const saved = await SaveCSV()
+      if (saved) notifications.show({ color: 'green', message: 'CSV sikeresen mentve.' })
     } catch (err: any) {
       if (err) notifications.show({ color: 'red', title: 'Hiba', message: String(err) })
     }

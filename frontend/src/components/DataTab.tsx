@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { DataGrid, renderTextEditor } from 'react-data-grid'
 import type { Column, RenderCellProps, RowsChangeData } from 'react-data-grid'
 import { ActionIcon, Tooltip, useComputedColorScheme } from '@mantine/core'
-import { main } from '../../wailsjs/go/models'
+import * as main from '../../bindings/kutyaguru'
 import './DataTab.css'
 
 type GridRow = Record<string, string | number> & { __rowIndex: number }

@@ -1,5 +1,5 @@
 import { Table, TextInput, Select, Text, Badge, Box } from '@mantine/core'
-import { main } from '../../wailsjs/go/models'
+import * as main from '../../bindings/kutyaguru'
 
 interface Props {
   fields: main.Field[]

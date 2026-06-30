@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=1.0
+Name=Kutyaguru Booking
+Comment=Booked4us → Számlázz.hu CSV converter
+# The Exec line includes %u to pass the URL to the application
+Exec=/usr/local/bin/kutyaguru-booking %u
+Terminal=false
+Type=Application
+Icon=kutyaguru-booking
+Categories=Utility;
+StartupWMClass=kutyaguru-booking
+
+ 

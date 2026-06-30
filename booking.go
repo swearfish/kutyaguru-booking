@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"bytes"
-	"context"
 	_ "embed"
 	"encoding/json"
 	"fmt"
@@ -15,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wailsapp/wails/v2/pkg/runtime"
+	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/xuri/excelize/v2"
 	"golang.org/x/text/encoding/charmap"
 	"gopkg.in/yaml.v3"
@@ -126,9 +125,10 @@ type editableFieldYAML struct {
 	Plus    int      `yaml:"plus"`
 }
 
-// Booking is the struct bound to Wails.
+// Booking is the struct bound to Wails (registered as a v3 service).
 type Booking struct {
-	ctx          context.Context
+	app          *application.App
+	win          *application.WebviewWindow
 	fields       []Field
 	columnNames  []string
 	rows         [][]string
@@ -222,6 +222,29 @@ func (b *Booking) saveSettings() {
 	_ = os.WriteFile(b.settingsPath, data, 0o644)
 }
 
+// updateGeometry copies the live window position/size into the in-memory
+// settings. It does NOT touch disk — it is called on every move/resize, so the
+// flush is deferred to WindowClosing / ServiceShutdown to avoid disk thrash.
+func (b *Booking) updateGeometry() {
+	if b.win == nil {
+		return
+	}
+	x, y := b.win.Position()
+	w, h := b.win.Size()
+	b.settings.WindowX, b.settings.WindowY = x, y
+	b.settings.WindowW, b.settings.WindowH = w, h
+}
+
+// ServiceShutdown flushes the (already-fresh) settings to disk when the app
+// quits. It deliberately does not re-read the window — on the close-button path
+// the window may already be tearing down, and move/resize have kept geometry
+// current. This is the backstop for the macOS Cmd+Q path, which can skip the
+// per-window WindowClosing hook.
+func (b *Booking) ServiceShutdown() error {
+	b.saveSettings()
+	return nil
+}
+
 // ─── Wails-exposed methods ────────────────────────────────────────────────────
 
 // GetSettings returns the current user settings (called on frontend mount).
@@ -281,12 +304,11 @@ func (b *Booking) SetServicePrices(m map[string]string) TableDataResult {
 
 // OpenBookedFile shows a file-open dialog for xlsx files and returns the sheet names.
 func (b *Booking) OpenBookedFile() ([]string, error) {
-	path, err := runtime.OpenFileDialog(b.ctx, runtime.OpenDialogOptions{
-		Title: "Booked4us Excel megnyitása",
-		Filters: []runtime.FileFilter{
-			{DisplayName: "Excel fájlok (*.xlsx)", Pattern: "*.xlsx"},
-		},
-	})
+	path, err := b.app.Dialog.OpenFile().
+		SetTitle("Booked4us Excel megnyitása").
+		AddFilter("Excel fájlok (*.xlsx)", "*.xlsx").
+		AttachToWindow(b.win).
+		PromptForSingleSelection()
 	if err != nil {
 		return nil, err
 	}
@@ -474,17 +496,16 @@ func (b *Booking) GetTableData() TableDataResult {
 }
 
 // ExportToExcel saves the current rows to an xlsx file chosen via save dialog.
-func (b *Booking) ExportToExcel() error {
+// It returns true when a file was written, false when the user cancelled.
+func (b *Booking) ExportToExcel() (bool, error) {
 	defaultName := "kutyaguru_ExcelExport_" + time.Now().Format("20060102_150405") + ".xlsx"
-	path, err := runtime.SaveFileDialog(b.ctx, runtime.SaveDialogOptions{
-		Title:           "Munkaadatok mentése Excel fájlba",
-		DefaultFilename: defaultName,
-		Filters: []runtime.FileFilter{
-			{DisplayName: "Excel fájlok (*.xlsx)", Pattern: "*.xlsx"},
-		},
-	})
+	path, err := b.app.Dialog.SaveFile().
+		SetFilename(defaultName).
+		AddFilter("Excel fájlok (*.xlsx)", "*.xlsx").
+		AttachToWindow(b.win).
+		PromptForSingleSelection()
 	if err != nil || path == "" {
-		return err
+		return false, err
 	}
 
 	f := excelize.NewFile()
@@ -501,17 +522,19 @@ func (b *Booking) ExportToExcel() error {
 			f.SetCellValue(sheet, cell, val)
 		}
 	}
-	return f.SaveAs(path)
+	if err := f.SaveAs(path); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 // ImportFromExcel loads rows from a previously exported xlsx file.
 func (b *Booking) ImportFromExcel() (TableDataResult, error) {
-	path, err := runtime.OpenFileDialog(b.ctx, runtime.OpenDialogOptions{
-		Title: "Munkaadatok betöltése Excel fájlból",
-		Filters: []runtime.FileFilter{
-			{DisplayName: "Excel fájlok (*.xlsx)", Pattern: "*.xlsx"},
-		},
-	})
+	path, err := b.app.Dialog.OpenFile().
+		SetTitle("Munkaadatok betöltése Excel fájlból").
+		AddFilter("Excel fájlok (*.xlsx)", "*.xlsx").
+		AttachToWindow(b.win).
+		PromptForSingleSelection()
 	if err != nil || path == "" {
 		return b.buildResult(), err
 	}
@@ -552,27 +575,28 @@ func (b *Booking) ImportFromExcel() (TableDataResult, error) {
 }
 
 // SaveCSV writes the Számlázz.hu CSV using the encoding from settings.
-func (b *Booking) SaveCSV() error {
+// SaveCSV returns true when a file was written, false when the user cancelled
+// the dialog (so the frontend can skip the success notification).
+func (b *Booking) SaveCSV() (bool, error) {
 	for _, ce := range b.cellErrors {
 		if ce.Severity == severityError {
-			return fmt.Errorf("nem menthető: a %d. sor %q oszlopában nem kódolható karakter: %q (pozíció: %d)",
+			return false, fmt.Errorf("nem menthető: a %d. sor %q oszlopában nem kódolható karakter: %q (pozíció: %d)",
 				ce.RowIndex+1, ce.ColName, ce.InvalidChar, ce.CharPos)
 		}
 	}
 
-	path, err := runtime.SaveFileDialog(b.ctx, runtime.SaveDialogOptions{
-		Title: "CSV mentése (Számlázz.hu)",
-		Filters: []runtime.FileFilter{
-			{DisplayName: "CSV fájlok (*.csv)", Pattern: "*.csv"},
-		},
-	})
+	path, err := b.app.Dialog.SaveFile().
+		SetFilename("szamlazz.csv").
+		AddFilter("CSV fájlok (*.csv)", "*.csv").
+		AttachToWindow(b.win).
+		PromptForSingleSelection()
 	if err != nil || path == "" {
-		return err
+		return false, err
 	}
 
 	file, err := os.Create(path)
 	if err != nil {
-		return fmt.Errorf("fájl létrehozási hiba: %w", err)
+		return false, fmt.Errorf("fájl létrehozási hiba: %w", err)
 	}
 	defer file.Close()
 
@@ -581,7 +605,10 @@ func (b *Booking) SaveCSV() error {
 		w = charmap.ISO8859_2.NewEncoder().Writer(file)
 	}
 
-	return b.writeCSV(w)
+	if err := b.writeCSV(w); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 // PreviewCSV renders the CSV exactly as SaveCSV would (char mapping applied) but

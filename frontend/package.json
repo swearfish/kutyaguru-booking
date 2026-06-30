@@ -1,17 +1,19 @@
 {
-  "name": "frontend",
+  "name": "kutyaguru-frontend",
   "private": true,
   "version": "0.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build:dev": "tsc && vite build --minify false --mode development",
+    "build": "tsc && vite build --mode production",
     "preview": "vite preview"
   },
   "dependencies": {
     "@mantine/core": "^9.0.0",
     "@mantine/hooks": "^9.0.0",
     "@mantine/notifications": "^9.0.0",
+    "@wailsio/runtime": "latest",
     "react": "^19.0.0",
     "react-data-grid": "^7.0.0-beta.47",
     "react-dom": "^19.0.0"
@@ -19,8 +21,8 @@
   "devDependencies": {
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "@vitejs/plugin-react": "^4.0.0",
-    "typescript": "^5.0.0",
-    "vite": "^5.0.0"
+    "@vitejs/plugin-react": "^6.0.0",
+    "typescript": "^5.2.2",
+    "vite": "^8.0.5"
   }
 }
