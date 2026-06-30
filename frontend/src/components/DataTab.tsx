@@ -22,18 +22,21 @@ function applyMapping(value: string, mapping: Record<string, string>): string {
 export default function DataTab({ tableData, onCellChange, onAddToMapping, charMapping }: Props) {
   const computedScheme = useComputedColorScheme('light')
 
-  const { errorMap, mappedMap } = useMemo(() => {
+  const { errorMap, mappedMap, warnMap } = useMemo(() => {
     const errorMap = new Map<string, main.CellError>()
     const mappedMap = new Map<string, main.CellError>()
+    const warnMap = new Map<string, main.CellError>()
     for (const ce of (tableData.cellErrors ?? [])) {
       const key = `${ce.rowIndex}:${ce.colName}`
-      if (ce.mapped) {
-        mappedMap.set(key, ce)
-      } else {
+      if (ce.severity === 'error') {
         errorMap.set(key, ce)
+      } else if (ce.severity === 'warning') {
+        warnMap.set(key, ce)
+      } else {
+        mappedMap.set(key, ce)
       }
     }
-    return { errorMap, mappedMap }
+    return { errorMap, mappedMap, warnMap }
   }, [tableData.cellErrors])
 
   const columns = useMemo<Column<GridRow>[]>(() => {
@@ -47,6 +50,7 @@ export default function DataTab({ tableData, onCellChange, onAddToMapping, charM
       cellClass: (row: GridRow) => {
         const key = `${row.__rowIndex}:${colName}`
         if (errorMap.has(key)) return 'errorCell'
+        if (warnMap.has(key)) return 'warnCell'
         if (mappedMap.has(key)) return 'mappedCell'
         return undefined
       },
@@ -54,11 +58,12 @@ export default function DataTab({ tableData, onCellChange, onAddToMapping, charM
         const key = `${props.row.__rowIndex}:${colName}`
         const cellValue = String(props.row[colName] ?? '')
         const err = errorMap.get(key)
+        const warn = warnMap.get(key)
         const mapped = mappedMap.get(key)
         if (err) {
           return (
             <Tooltip
-              label={`Nem kódolható: "${err.invalidChar}"`}
+              label={err.message || `Nem kódolható: "${err.invalidChar}"`}
               withArrow
             >
               <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -72,6 +77,15 @@ export default function DataTab({ tableData, onCellChange, onAddToMapping, charM
                 >
                   ➕
                 </ActionIcon>
+              </div>
+            </Tooltip>
+          )
+        }
+        if (warn) {
+          return (
+            <Tooltip label={warn.message} withArrow>
+              <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center' }}>
+                {cellValue}
               </div>
             </Tooltip>
           )
@@ -92,7 +106,7 @@ export default function DataTab({ tableData, onCellChange, onAddToMapping, charM
         return <>{cellValue}</>
       },
     }))
-  }, [tableData.columns, errorMap, mappedMap, charMapping])
+  }, [tableData.columns, errorMap, mappedMap, warnMap, charMapping])
 
   const rows = useMemo<GridRow[]>(() => {
     return (tableData.rows ?? []).map((row, rowIndex) => {

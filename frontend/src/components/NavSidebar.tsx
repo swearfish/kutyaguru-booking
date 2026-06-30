@@ -1,6 +1,6 @@
 import { ActionIcon, Popover, SegmentedControl, Stack, Text, Tooltip } from '@mantine/core'
 
-type View = 'table' | 'fields' | 'mapping'
+type View = 'table' | 'fields' | 'mapping' | 'prices'
 
 interface Props {
   view: View
@@ -50,8 +50,19 @@ export default function NavSidebar({ view, onViewChange, colorScheme, encoding, 
           variant={view === 'mapping' ? 'filled' : 'subtle'}
           size="xl"
           onClick={() => onViewChange('mapping')}
+          mb={4}
         >
           🔤
+        </ActionIcon>
+      </Tooltip>
+
+      <Tooltip label="Árak" position="right" withArrow>
+        <ActionIcon
+          variant={view === 'prices' ? 'filled' : 'subtle'}
+          size="xl"
+          onClick={() => onViewChange('prices')}
+        >
+          💰
         </ActionIcon>
       </Tooltip>
 

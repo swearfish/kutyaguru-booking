@@ -1,9 +1,11 @@
-import { useState, useCallback, useEffect } from 'react'
-import { AppShell, useMantineColorScheme } from '@mantine/core'
+import { useState, useCallback, useEffect, useMemo } from 'react'
+import { AppShell, Code, Modal, ScrollArea, SegmentedControl, Table, useMantineColorScheme } from '@mantine/core'
+import { useDisclosure } from '@mantine/hooks'
 import { notifications } from '@mantine/notifications'
 import { main } from '../wailsjs/go/models'
 import {
   OpenBookedFile,
+  LoadRecentFile,
   LoadSheet,
   GetFields,
   UpdateFieldValue,
@@ -12,23 +14,30 @@ import {
   ExportToExcel,
   ImportFromExcel,
   SaveCSV,
+  PreviewCSV,
   GetStatus,
   GetSettings,
-  SaveSettings,
+  GetRecentFiles,
+  SetColorScheme,
   SetEncoding,
   SetCharMapping,
+  SetServicePrices,
 } from '../wailsjs/go/main/Booking'
 import Toolbar from './components/Toolbar'
 import DataTab from './components/DataTab'
 import FieldsTab from './components/FieldsTab'
 import MappingTab from './components/MappingTab'
+import PricesTab from './components/PricesTab'
 import StatusBar from './components/StatusBar'
 import NavSidebar from './components/NavSidebar'
 import SheetTabs from './components/SheetTabs'
 
 const emptyTable: main.TableDataResult = new main.TableDataResult({ columns: [], rows: [], cellErrors: [] })
 
-type View = 'table' | 'fields' | 'mapping'
+const COL_SERVICE = 'Tétel megnevezés'
+const COL_PRICE = 'Nettó egységár'
+
+type View = 'table' | 'fields' | 'mapping' | 'prices'
 type ColorScheme = 'light' | 'dark' | 'auto'
 
 export default function App() {
@@ -43,6 +52,11 @@ export default function App() {
   const [colorScheme, setColorScheme] = useState<ColorScheme>('auto')
   const [encoding, setEncoding] = useState<string>('ISO-8859-2')
   const [charMapping, setCharMapping] = useState<Record<string, string>>({})
+  const [servicePrices, setServicePrices] = useState<Record<string, string>>({})
+  const [recentFiles, setRecentFiles] = useState<string[]>([])
+  const [previewText, setPreviewText] = useState<string>('')
+  const [previewMode, setPreviewMode] = useState<'table' | 'raw'>('table')
+  const [previewOpened, previewHandlers] = useDisclosure(false)
 
   // Load persisted settings on mount.
   useEffect(() => {
@@ -52,32 +66,64 @@ export default function App() {
       mantineSetColorScheme(scheme)
       setEncoding(s.encoding || 'ISO-8859-2')
       setCharMapping(s.charMapping || {})
+      setServicePrices(s.servicePrices || {})
+      setRecentFiles(s.recentFiles || [])
     })
   }, [])
 
-  const currentSettings = useCallback((): main.Settings => {
-    const s = new main.Settings({})
-    s.colorScheme = colorScheme
-    s.encoding = encoding
-    return s
-  }, [colorScheme, encoding])
+  // Distinct service values found in the current sheet, plus the price default.
+  const services = useMemo(() => {
+    const idx = tableData.columns.indexOf(COL_SERVICE)
+    if (idx < 0) return []
+    return [...new Set(tableData.rows.map(r => r[idx]).filter(v => v && v.trim() !== ''))]
+  }, [tableData])
+  const defaultPrice = useMemo(
+    () => fields.find(f => f.name === COL_PRICE)?.value ?? '',
+    [fields],
+  )
+
+  // Error / warning counts for the status bar.
+  const { errorCount, warningCount } = useMemo(() => {
+    let errorCount = 0, warningCount = 0
+    for (const ce of (tableData.cellErrors ?? [])) {
+      if (ce.severity === 'error') errorCount++
+      else if (ce.severity === 'warning') warningCount++
+    }
+    return { errorCount, warningCount }
+  }, [tableData.cellErrors])
+
+  const loadFirstSheet = useCallback(async (sheets: string[]) => {
+    setSheetNames(sheets)
+    setSelectedSheet(sheets[0])
+    const st = await GetStatus()
+    setStatus(st)
+    const result = await LoadSheet(sheets[0])
+    setTableData(result)
+    const f = await GetFields()
+    setFields(f)
+    setRecentFiles(await GetRecentFiles())
+  }, [])
 
   const handleOpenFile = useCallback(async () => {
     try {
       const sheets = await OpenBookedFile()
       if (!sheets || sheets.length === 0) return
-      setSheetNames(sheets)
-      setSelectedSheet(sheets[0])
-      const st = await GetStatus()
-      setStatus(st)
-      const result = await LoadSheet(sheets[0])
-      setTableData(result)
-      const f = await GetFields()
-      setFields(f)
+      await loadFirstSheet(sheets)
     } catch (err: any) {
       notifications.show({ color: 'red', title: 'Hiba', message: String(err) })
     }
-  }, [])
+  }, [loadFirstSheet])
+
+  const handleOpenRecent = useCallback(async (path: string) => {
+    try {
+      const sheets = await LoadRecentFile(path)
+      if (!sheets || sheets.length === 0) return
+      await loadFirstSheet(sheets)
+    } catch (err: any) {
+      setRecentFiles(await GetRecentFiles()) // a missing file is dropped server-side
+      notifications.show({ color: 'red', title: 'Hiba', message: String(err) })
+    }
+  }, [loadFirstSheet])
 
   const handleSheetChange = useCallback(async (sheet: string) => {
     setSelectedSheet(sheet)
@@ -138,20 +184,18 @@ export default function App() {
     }
   }, [])
 
+  // Settings are persisted via single-field backend mutators (SetColorScheme,
+  // SetEncoding, SetCharMapping, SetServicePrices, UpdateFieldValue) so the
+  // frontend never reconstructs a full Settings object — that previously wiped
+  // server-managed fields like the char map / prices / recent files.
   const handleColorSchemeChange = useCallback(async (scheme: string) => {
     const s = scheme as ColorScheme
     setColorScheme(s)
     mantineSetColorScheme(s)
     try {
-      const settings = new main.Settings({
-        colorScheme: s,
-        encoding,
-        charMapping,
-        windowX: 0, windowY: 0, windowW: 0, windowH: 0,
-      })
-      await SaveSettings(settings)
+      await SetColorScheme(s)
     } catch { /* non-critical */ }
-  }, [encoding, charMapping])
+  }, [])
 
   const handleSetCharMapping = useCallback(async (m: Record<string, string>) => {
     setCharMapping(m)
@@ -168,22 +212,56 @@ export default function App() {
     handleSetCharMapping(m)
   }, [charMapping, handleSetCharMapping])
 
+  const handleSetServicePrices = useCallback(async (m: Record<string, string>) => {
+    setServicePrices(m)
+    try {
+      const result = await SetServicePrices(m)
+      setTableData(result)
+    } catch (err: any) {
+      notifications.show({ color: 'red', title: 'Hiba', message: String(err) })
+    }
+  }, [])
+
+  const handlePreview = useCallback(async () => {
+    try {
+      const text = await PreviewCSV()
+      setPreviewText(text)
+      previewHandlers.open()
+    } catch (err: any) {
+      notifications.show({ color: 'red', title: 'Hiba', message: String(err) })
+    }
+  }, [previewHandlers])
+
+  // Parse the raw CSV preview into a grid mirroring the Számlázz.hu layout:
+  // a 3-row header (grouping line + partner-level + item-level column names),
+  // then two output lines per invoice record. Cells align only within each
+  // matching line type — the same shape the saved file (and Excel) uses.
+  const previewRows = useMemo(() => {
+    const lines = previewText.replace(/\n+$/, '').split('\n')
+    if (lines.length === 0 || (lines.length === 1 && lines[0] === '')) return []
+    const rows = lines.map(l => l.split(';'))
+    let maxCol = 0
+    for (const r of rows) {
+      for (let i = r.length - 1; i >= 0; i--) {
+        if (r[i].trim() !== '') { maxCol = Math.max(maxCol, i + 1); break }
+      }
+    }
+    return rows.map(r => {
+      const padded = r.slice(0, maxCol)
+      while (padded.length < maxCol) padded.push('')
+      return padded
+    })
+  }, [previewText])
+
   const handleEncodingChange = useCallback(async (enc: string) => {
     setEncoding(enc)
     try {
       const result = await SetEncoding(enc)
       setTableData(result)
-      const settings = new main.Settings({
-        colorScheme,
-        encoding: enc,
-        charMapping,
-        windowX: 0, windowY: 0, windowW: 0, windowH: 0,
-      })
-      await SaveSettings(settings)
     } catch (err: any) {
       notifications.show({ color: 'red', title: 'Hiba', message: String(err) })
     }
-  }, [colorScheme, charMapping])
+  }, [])
 
   return (
     <AppShell
@@ -195,9 +273,12 @@ export default function App() {
       <AppShell.Header>
         <Toolbar
           onOpenFile={handleOpenFile}
+          onOpenRecent={handleOpenRecent}
+          recentFiles={recentFiles}
           onExportExcel={handleExportExcel}
           onImportExcel={handleImportExcel}
           onSaveCSV={handleSaveCSV}
+          onPreview={handlePreview}
           hasData={sheetNames.length > 0}
         />
       </AppShell.Header>
@@ -232,17 +313,61 @@ export default function App() {
             <MappingTab
               charMapping={charMapping}
               unmappedChars={[...new Set(
-                tableData.cellErrors.filter(ce => !ce.mapped).map(ce => ce.invalidChar)
+                tableData.cellErrors.filter(ce => ce.severity === 'error').map(ce => ce.invalidChar)
               )]}
               onChange={handleSetCharMapping}
+            />
+          </div>
+        )}
+        {view === 'prices' && (
+          <div style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
+            <PricesTab
+              servicePrices={servicePrices}
+              services={services}
+              defaultPrice={defaultPrice}
+              onChange={handleSetServicePrices}
             />
           </div>
         )}
       </AppShell.Main>
 
       <AppShell.Footer>
-        <StatusBar status={status} />
+        <StatusBar status={status} errorCount={errorCount} warningCount={warningCount} />
       </AppShell.Footer>
+
+      <Modal opened={previewOpened} onClose={previewHandlers.close} title="CSV előnézet" size="xl">
+        <SegmentedControl
+          mb="sm"
+          value={previewMode}
+          onChange={v => setPreviewMode(v as 'table' | 'raw')}
+          data={[{ label: 'Táblázat', value: 'table' }, { label: 'Nyers szöveg', value: 'raw' }]}
+        />
+        <ScrollArea h="60vh">
+          {previewMode === 'raw' ? (
+            <Code block style={{ whiteSpace: 'pre', fontSize: 12 }}>{previewText}</Code>
+          ) : (
+            <Table withTableBorder withColumnBorders stickyHeader fz="xs" style={{ whiteSpace: 'nowrap' }}>
+              <Table.Thead>
+                {previewRows.slice(0, 3).map((row, ri) => (
+                  <Table.Tr key={ri}>
+                    {row.map((cell, ci) => <Table.Th key={ci}>{cell}</Table.Th>)}
+                  </Table.Tr>
+                ))}
+              </Table.Thead>
+              <Table.Tbody>
+                {previewRows.slice(3).map((row, ri) => (
+                  <Table.Tr
+                    key={ri}
+                    style={ri % 2 === 0 ? { borderTop: '2px solid var(--mantine-color-default-border)' } : undefined}
+                  >
+                    {row.map((cell, ci) => <Table.Td key={ci}>{cell}</Table.Td>)}
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          )}
+        </ScrollArea>
+      </Modal>
     </AppShell>
   )
 }

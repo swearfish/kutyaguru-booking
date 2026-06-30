@@ -8,6 +8,10 @@ export function GetCharMapping():Promise<Record<string, string>>;
 
 export function GetFields():Promise<Array<main.Field>>;
 
+export function GetRecentFiles():Promise<Array<string>>;
+
+export function GetServicePrices():Promise<Record<string, string>>;
+
 export function GetSettings():Promise<main.Settings>;
 
 export function GetStatus():Promise<string>;
@@ -16,9 +20,13 @@ export function GetTableData():Promise<main.TableDataResult>;
 
 export function ImportFromExcel():Promise<main.TableDataResult>;
 
+export function LoadRecentFile(arg1:string):Promise<Array<string>>;
+
 export function LoadSheet(arg1:string):Promise<main.TableDataResult>;
 
 export function OpenBookedFile():Promise<Array<string>>;
+
+export function PreviewCSV():Promise<string>;
 
 export function ReapplyFields():Promise<main.TableDataResult>;
 
@@ -28,7 +36,11 @@ export function SaveSettings(arg1:main.Settings):Promise<void>;
 
 export function SetCharMapping(arg1:Record<string, string>):Promise<main.TableDataResult>;
 
+export function SetColorScheme(arg1:string):Promise<void>;
+
 export function SetEncoding(arg1:string):Promise<main.TableDataResult>;
+
+export function SetServicePrices(arg1:Record<string, string>):Promise<main.TableDataResult>;
 
 export function UpdateCell(arg1:number,arg2:string,arg3:string):Promise<main.TableDataResult>;
 

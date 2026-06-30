@@ -1,15 +1,17 @@
 package main
 
 import (
-	_ "embed"
 	"bufio"
 	"bytes"
 	"context"
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -35,24 +37,49 @@ const (
 	FieldTypeDate    FieldType = "DATE"
 )
 
+// Output column names referenced by validation and per-service pricing.
+const (
+	colService  = "Tétel megnevezés"     // service / item description
+	colPrice    = "Nettó egységár"       // net unit price
+	colPartner  = "Partner megnevezése:" // partner (customer) name
+	colEmail    = "Email"
+	colPostal   = "Irányítószám"
+	colQuantity = "Mennyiség"
+)
+
+// CellError severities (also used as the CSS class selector on the frontend).
+const (
+	severityError   = "error"   // red: blocks export (encoding cannot represent the char)
+	severityMapped  = "mapped"  // yellow: will be substituted on export
+	severityWarning = "warning" // orange: content quality issue, never blocks export
+)
+
+const maxRecentFiles = 10
+
 // Settings holds user preferences persisted across sessions.
 type Settings struct {
 	ColorScheme string            `json:"colorScheme"` // "light" | "dark" | "auto"
 	Encoding    string            `json:"encoding"`    // "ISO-8859-2" | "UTF-8"
 	CharMapping map[string]string `json:"charMapping"` // unicode char → latin-2 replacement
-	WindowX     int               `json:"windowX"`
-	WindowY     int               `json:"windowY"`
-	WindowW     int               `json:"windowW"`
-	WindowH     int               `json:"windowH"`
+	FieldValues map[string]string `json:"fieldValues"` // persisted TEXT editable field values
+
+	ServicePrices map[string]string `json:"servicePrices"` // service name → net unit price
+	RecentFiles   []string          `json:"recentFiles"`   // most-recent-first, capped
+	WindowX       int               `json:"windowX"`
+	WindowY       int               `json:"windowY"`
+	WindowW       int               `json:"windowW"`
+	WindowH       int               `json:"windowH"`
 }
 
 func defaultSettings() Settings {
 	return Settings{
-		ColorScheme: "auto",
-		Encoding:    "ISO-8859-2",
-		CharMapping: map[string]string{},
-		WindowW:     1280,
-		WindowH:     800,
+		ColorScheme:   "auto",
+		Encoding:      "ISO-8859-2",
+		CharMapping:   map[string]string{},
+		FieldValues:   map[string]string{},
+		ServicePrices: map[string]string{},
+		WindowW:       1280,
+		WindowH:       800,
 	}
 }
 
@@ -74,6 +101,8 @@ type CellError struct {
 	CharPos     int    `json:"charPos"`
 	Mapped      bool   `json:"mapped"`   // true → substitution exists (yellow); false → blocked (red)
 	MappedTo    string `json:"mappedTo"` // replacement string when Mapped==true
+	Severity    string `json:"severity"` // "error" (red) | "mapped" (yellow) | "warning" (orange)
+	Message     string `json:"message"`  // human-readable description for tooltip / status bar
 }
 
 // TableDataResult is returned to the frontend whenever the table changes.
@@ -128,6 +157,7 @@ func (b *Booking) init() error {
 		return fmt.Errorf("fields.yaml: %w", err)
 	}
 	b.fields = fields
+	b.restoreFieldValues()
 	b.columnNames = make([]string, len(fields))
 	for i, f := range fields {
 		b.columnNames[i] = f.Name
@@ -139,6 +169,20 @@ func (b *Booking) init() error {
 	}
 	b.tmpl = tmpl
 	return nil
+}
+
+// restoreFieldValues applies persisted editable (TEXT) values onto the parsed
+// fields. DATE fields are intentionally left computed-from-today so the dates
+// always reflect the current run.
+func (b *Booking) restoreFieldValues() {
+	for i := range b.fields {
+		if b.fields[i].Type != FieldTypeText {
+			continue
+		}
+		if v, ok := b.settings.FieldValues[b.fields[i].Name]; ok {
+			b.fields[i].Value = v
+		}
+	}
 }
 
 func (b *Booking) loadSettings() Settings {
@@ -159,6 +203,12 @@ func (b *Booking) loadSettings() Settings {
 	}
 	if s.CharMapping == nil {
 		s.CharMapping = map[string]string{}
+	}
+	if s.FieldValues == nil {
+		s.FieldValues = map[string]string{}
+	}
+	if s.ServicePrices == nil {
+		s.ServicePrices = map[string]string{}
 	}
 	return s
 }
@@ -186,9 +236,17 @@ func (b *Booking) SaveSettings(s Settings) error {
 	return nil
 }
 
-// SetEncoding updates the CSV encoding, re-validates all cells, and returns the new table state.
+// SetColorScheme persists the UI color scheme ("light" | "dark" | "auto").
+func (b *Booking) SetColorScheme(scheme string) {
+	b.settings.ColorScheme = scheme
+	b.saveSettings()
+}
+
+// SetEncoding updates the CSV encoding, re-validates all cells, persists the
+// choice, and returns the new table state.
 func (b *Booking) SetEncoding(enc string) TableDataResult {
 	b.settings.Encoding = enc
+	b.saveSettings()
 	b.cellErrors = b.validateAllCells()
 	return b.buildResult()
 }
@@ -202,6 +260,21 @@ func (b *Booking) GetCharMapping() map[string]string {
 func (b *Booking) SetCharMapping(m map[string]string) TableDataResult {
 	b.settings.CharMapping = m
 	b.saveSettings()
+	b.cellErrors = b.validateAllCells()
+	return b.buildResult()
+}
+
+// GetServicePrices returns the current service → net-unit-price lookup.
+func (b *Booking) GetServicePrices() map[string]string {
+	return b.settings.ServicePrices
+}
+
+// SetServicePrices replaces the price lookup, re-applies it to all rows,
+// re-validates, and saves settings.
+func (b *Booking) SetServicePrices(m map[string]string) TableDataResult {
+	b.settings.ServicePrices = m
+	b.saveSettings()
+	b.applyServicePrices()
 	b.cellErrors = b.validateAllCells()
 	return b.buildResult()
 }
@@ -227,7 +300,56 @@ func (b *Booking) OpenBookedFile() ([]string, error) {
 	defer f.Close()
 
 	b.excelPath = path
+	b.pushRecent(path)
 	return f.GetSheetList(), nil
+}
+
+// GetRecentFiles returns the most-recently-opened file paths (newest first).
+func (b *Booking) GetRecentFiles() []string {
+	return b.settings.RecentFiles
+}
+
+// LoadRecentFile reopens a previously used file without a dialog and returns its
+// sheet names. A missing file is dropped from the recent list and reported.
+func (b *Booking) LoadRecentFile(path string) ([]string, error) {
+	f, err := excelize.OpenFile(path)
+	if err != nil {
+		b.removeRecent(path)
+		return nil, fmt.Errorf("a fájl nem nyitható meg: %w", err)
+	}
+	defer f.Close()
+
+	b.excelPath = path
+	b.pushRecent(path)
+	return f.GetSheetList(), nil
+}
+
+// pushRecent moves path to the front of the recent list (deduped, capped).
+func (b *Booking) pushRecent(path string) {
+	list := make([]string, 0, maxRecentFiles)
+	list = append(list, path)
+	for _, p := range b.settings.RecentFiles {
+		if p != path {
+			list = append(list, p)
+		}
+	}
+	if len(list) > maxRecentFiles {
+		list = list[:maxRecentFiles]
+	}
+	b.settings.RecentFiles = list
+	b.saveSettings()
+}
+
+// removeRecent drops path from the recent list.
+func (b *Booking) removeRecent(path string) {
+	list := b.settings.RecentFiles[:0]
+	for _, p := range b.settings.RecentFiles {
+		if p != path {
+			list = append(list, p)
+		}
+	}
+	b.settings.RecentFiles = list
+	b.saveSettings()
 }
 
 // LoadSheet reads the named sheet from the already-opened Excel file.
@@ -273,6 +395,7 @@ func (b *Booking) LoadSheet(sheetName string) (TableDataResult, error) {
 		b.rows = append(b.rows, row)
 	}
 
+	b.applyServicePrices()
 	b.cellErrors = b.validateAllCells()
 	return b.buildResult(), nil
 }
@@ -290,6 +413,15 @@ func (b *Booking) UpdateFieldValue(fieldName, value string) error {
 				return fmt.Errorf("%q mező nem szerkeszthető", fieldName)
 			}
 			b.fields[i].Value = value
+			// Persist editable (TEXT) values so they survive restarts; DATE
+			// fields stay transient (recomputed from today on each launch).
+			if b.fields[i].Type == FieldTypeText {
+				if b.settings.FieldValues == nil {
+					b.settings.FieldValues = map[string]string{}
+				}
+				b.settings.FieldValues[fieldName] = value
+				b.saveSettings()
+			}
 			return nil
 		}
 	}
@@ -312,6 +444,7 @@ func (b *Booking) ReapplyFields() TableDataResult {
 			}
 		}
 	}
+	b.applyServicePrices()
 	b.cellErrors = b.validateAllCells()
 	return b.buildResult()
 }
@@ -328,18 +461,10 @@ func (b *Booking) UpdateCell(rowIndex int, colName, value string) TableDataResul
 	if colIdx >= 0 && rowIndex >= 0 && rowIndex < len(b.rows) {
 		b.rows[rowIndex][colIdx] = value
 	}
-	filtered := b.cellErrors[:0]
-	for _, ce := range b.cellErrors {
-		if ce.RowIndex != rowIndex || ce.ColName != colName {
-			filtered = append(filtered, ce)
-		}
-	}
-	b.cellErrors = filtered
-	if !strings.EqualFold(b.settings.Encoding, "UTF-8") {
-		if ce, bad := validateCell(rowIndex, colName, value, b.settings.CharMapping); bad {
-			b.cellErrors = append(b.cellErrors, ce)
-		}
-	}
+	// Full revalidation keeps content and unpriced-service warnings consistent
+	// when editing a service or price cell affects another cell. Tables are
+	// small (tens of rows), so the cost is negligible.
+	b.cellErrors = b.validateAllCells()
 	return b.buildResult()
 }
 
@@ -429,7 +554,7 @@ func (b *Booking) ImportFromExcel() (TableDataResult, error) {
 // SaveCSV writes the Számlázz.hu CSV using the encoding from settings.
 func (b *Booking) SaveCSV() error {
 	for _, ce := range b.cellErrors {
-		if !ce.Mapped {
+		if ce.Severity == severityError {
 			return fmt.Errorf("nem menthető: a %d. sor %q oszlopában nem kódolható karakter: %q (pozíció: %d)",
 				ce.RowIndex+1, ce.ColName, ce.InvalidChar, ce.CharPos)
 		}
@@ -457,6 +582,17 @@ func (b *Booking) SaveCSV() error {
 	}
 
 	return b.writeCSV(w)
+}
+
+// PreviewCSV renders the CSV exactly as SaveCSV would (char mapping applied) but
+// returns it as a UTF-8 string for on-screen display, regardless of the export
+// encoding.
+func (b *Booking) PreviewCSV() (string, error) {
+	var buf bytes.Buffer
+	if err := b.writeCSV(&buf); err != nil {
+		return "", err
+	}
+	return buf.String(), nil
 }
 
 // GetStatus returns the currently open Excel file path for the status bar.
@@ -488,19 +624,96 @@ func (b *Booking) getCellByColName(row []string, colName string) string {
 	return ""
 }
 
-// validateAllCells validates every cell against the current encoding.
-// UTF-8 accepts all runes; ISO-8859-2 checks via charmap, consulting the char mapping.
-func (b *Booking) validateAllCells() []CellError {
-	if strings.EqualFold(b.settings.Encoding, "UTF-8") {
-		return nil
+// colIndex returns the column index for the given output column name, or -1.
+func (b *Booking) colIndex(colName string) int {
+	for i, name := range b.columnNames {
+		if name == colName {
+			return i
+		}
 	}
-	var errs []CellError
+	return -1
+}
+
+// applyServicePrices overwrites each row's net-unit-price cell with the price
+// configured for that row's service, when one exists. Rows whose service has no
+// configured price keep whatever value is already there (the flat default).
+func (b *Booking) applyServicePrices() {
+	if len(b.settings.ServicePrices) == 0 {
+		return
+	}
+	svcIdx := b.colIndex(colService)
+	priceIdx := b.colIndex(colPrice)
+	if svcIdx < 0 || priceIdx < 0 {
+		return
+	}
+	for ri := range b.rows {
+		if svcIdx >= len(b.rows[ri]) || priceIdx >= len(b.rows[ri]) {
+			continue
+		}
+		if price, ok := b.settings.ServicePrices[b.rows[ri][svcIdx]]; ok {
+			b.rows[ri][priceIdx] = price
+		}
+	}
+}
+
+// severityRank orders the three severities so the most important issue wins
+// when several apply to the same cell (error > warning > mapped).
+func severityRank(s string) int {
+	switch s {
+	case severityError:
+		return 3
+	case severityWarning:
+		return 2
+	case severityMapped:
+		return 1
+	default:
+		return 0
+	}
+}
+
+// validateAllCells produces one CellError per problematic cell. Encoding checks
+// run only outside UTF-8 mode; content-quality and unpriced-service warnings run
+// always (content validity is encoding-independent).
+func (b *Booking) validateAllCells() []CellError {
+	checkEncoding := !strings.EqualFold(b.settings.Encoding, "UTF-8")
+	svcIdx := b.colIndex(colService)
+	priceIdx := b.colIndex(colPrice)
+
+	// Keep the highest-severity issue per cell, keyed by "row:col".
+	best := make(map[string]CellError)
+	consider := func(ce CellError, ok bool) {
+		if !ok {
+			return
+		}
+		key := fmt.Sprintf("%d:%s", ce.RowIndex, ce.ColName)
+		if cur, exists := best[key]; !exists || severityRank(ce.Severity) > severityRank(cur.Severity) {
+			best[key] = ce
+		}
+	}
+
 	for ri, row := range b.rows {
 		for ci, val := range row {
-			if ce, bad := validateCell(ri, b.columnNames[ci], val, b.settings.CharMapping); bad {
-				errs = append(errs, ce)
+			colName := b.columnNames[ci]
+			if checkEncoding {
+				consider(validateCell(ri, colName, val, b.settings.CharMapping))
+			}
+			consider(validateContent(ri, colName, val))
+			// Unpriced-service warning: the net-unit-price cell of a row whose
+			// service has no configured price.
+			if ci == priceIdx && svcIdx >= 0 && svcIdx < len(row) {
+				svc := row[svcIdx]
+				if _, priced := b.settings.ServicePrices[svc]; !priced && strings.TrimSpace(svc) != "" {
+					consider(CellError{RowIndex: ri, ColName: colName, Value: val,
+						Severity: severityWarning,
+						Message:  "Nincs ár ehhez a szolgáltatáshoz"}, true)
+				}
 			}
 		}
+	}
+
+	errs := make([]CellError, 0, len(best))
+	for _, ce := range best {
+		errs = append(errs, ce)
 	}
 	return errs
 }
@@ -559,16 +772,58 @@ func validateCell(rowIndex int, colName, value string, mapping map[string]string
 		if repl, inMap := mapping[char]; inMap {
 			if firstMapped == nil {
 				ce := CellError{RowIndex: rowIndex, ColName: colName, Value: value,
-					InvalidChar: char, CharPos: pos, Mapped: true, MappedTo: repl}
+					InvalidChar: char, CharPos: pos, Mapped: true, MappedTo: repl,
+					Severity: severityMapped,
+					Message:  fmt.Sprintf("Exportáláskor helyettesítve: %q → %q", char, repl)}
 				firstMapped = &ce
 			}
 		} else {
 			return CellError{RowIndex: rowIndex, ColName: colName, Value: value,
-				InvalidChar: char, CharPos: pos, Mapped: false}, true
+				InvalidChar: char, CharPos: pos, Mapped: false,
+				Severity: severityError,
+				Message:  fmt.Sprintf("Nem kódolható karakter: %q", char)}, true
 		}
 	}
 	if firstMapped != nil {
 		return *firstMapped, true
+	}
+	return CellError{}, false
+}
+
+// emailRe is a deliberately lenient address@host.tld check — enough to catch
+// obvious typos without rejecting unusual but valid addresses.
+var emailRe = regexp.MustCompile(`^[^@\s]+@[^@\s]+\.[^@\s]+$`)
+
+// validateContent returns a content-quality warning for a cell, keyed by its
+// output column name. These never block export; they only surface as orange.
+func validateContent(rowIndex int, colName, value string) (CellError, bool) {
+	warn := func(msg string) (CellError, bool) {
+		return CellError{RowIndex: rowIndex, ColName: colName, Value: value,
+			Severity: severityWarning, Message: msg}, true
+	}
+	switch colName {
+	case colPartner:
+		if strings.TrimSpace(value) == "" {
+			return warn("Hiányzó partner név")
+		}
+	case colEmail:
+		if strings.TrimSpace(value) == "" {
+			return warn("Hiányzó e-mail cím")
+		}
+		if !emailRe.MatchString(strings.TrimSpace(value)) {
+			return warn("Érvénytelen e-mail cím")
+		}
+	case colPostal:
+		v := strings.TrimSpace(value)
+		if len(v) != 4 || strings.IndexFunc(v, func(r rune) bool { return r < '0' || r > '9' }) >= 0 {
+			return warn("Az irányítószám 4 számjegyű")
+		}
+	case colQuantity:
+		v := strings.TrimSpace(value)
+		n, err := strconv.Atoi(v)
+		if err != nil || n <= 0 {
+			return warn("Érvénytelen mennyiség")
+		}
 	}
 	return CellError{}, false
 }

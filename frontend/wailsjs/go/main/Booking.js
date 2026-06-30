@@ -14,6 +14,14 @@ export function GetFields() {
   return window['go']['main']['Booking']['GetFields']();
 }
 
+export function GetRecentFiles() {
+  return window['go']['main']['Booking']['GetRecentFiles']();
+}
+
+export function GetServicePrices() {
+  return window['go']['main']['Booking']['GetServicePrices']();
+}
+
 export function GetSettings() {
   return window['go']['main']['Booking']['GetSettings']();
 }
@@ -30,12 +38,20 @@ export function ImportFromExcel() {
   return window['go']['main']['Booking']['ImportFromExcel']();
 }
 
+export function LoadRecentFile(arg1) {
+  return window['go']['main']['Booking']['LoadRecentFile'](arg1);
+}
+
 export function LoadSheet(arg1) {
   return window['go']['main']['Booking']['LoadSheet'](arg1);
 }
 
 export function OpenBookedFile() {
   return window['go']['main']['Booking']['OpenBookedFile']();
+}
+
+export function PreviewCSV() {
+  return window['go']['main']['Booking']['PreviewCSV']();
 }
 
 export function ReapplyFields() {
@@ -54,8 +70,16 @@ export function SetCharMapping(arg1) {
   return window['go']['main']['Booking']['SetCharMapping'](arg1);
 }
 
+export function SetColorScheme(arg1) {
+  return window['go']['main']['Booking']['SetColorScheme'](arg1);
+}
+
 export function SetEncoding(arg1) {
   return window['go']['main']['Booking']['SetEncoding'](arg1);
+}
+
+export function SetServicePrices(arg1) {
+  return window['go']['main']['Booking']['SetServicePrices'](arg1);
 }
 
 export function UpdateCell(arg1, arg2, arg3) {

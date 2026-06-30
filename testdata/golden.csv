@@ -1,0 +1,9 @@
+;;Számlázási cím;;;;;;;Levelezési cím;;;;;;;;;;;;;;;;Számlázási cím;Levelezési cím
+;Partner megnevezése:;Irányítószám;Település;Utca, házszám;Fizetési mód;Kelt;Teljesítés;Fizetési határidõ;Név;Irányítószám;Település;Utca, házszám;Megjegyzés;Szállító bankszámlaszáma;Email;Nyelv;Logófájl neve;Rendelésszám;Partner adószáma;Vevõ fõkönyvi szám;Vevõ fõkönyvi azonosító;Partner EU-s adószáma;Folyamatos teljesítésû;Könyvelés dátuma;Ország;Ország
+;Tétel megnevezés;Mennyiség;Mennyiségi egység;Nettó egységár;Áfakulcs;Tétel nettó;Tétel áfa;Tétel bruttó;Tétel megjegyzés;Árbevétel fõkönyvi szám;Áfa fõkönyvi szám;Gazdasági esemény azonosító;Áfa gazdasági esemény azonosító;;;;;;;;;;;;;
+1;Kovacs Rita;1234;Budapest;Fo utca 1.;Készpénz;2025.01.15;2025.01.15;2025.01.18;;1234;Budapest;Fo utca 1.;;;kovacs@example.com;;;;;;;;;;;;
+;Smart Puppy - Kolyok;1;db;3 500 Ft;AAM;;;;;;;;;;;;;;;;;;;;;;
+2;Toth Laszlo;5678;Debrecen;Kossuth ter 5.;Készpénz;2025.01.15;2025.01.15;2025.01.18;;5678;Debrecen;Kossuth ter 5.;;;toth@example.com;;;;;;;;;;;;
+;Smart Puppy - Felnott;2;db;3 500 Ft;AAM;;;;;;;;;;;;;;;;;;;;;;
+3;Nagy Anna;9012;Gyor;Arpad ut 12.;Készpénz;2025.01.15;2025.01.15;2025.01.18;;9012;Gyor;Arpad ut 12.;;;nagy@example.com;;;;;;;;;;;;
+;Versenyfelkeszito;1;db;3 500 Ft;AAM;;;;;;;;;;;;;;;;;;;;;;

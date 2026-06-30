@@ -8,6 +8,8 @@ export namespace main {
 	    charPos: number;
 	    mapped: boolean;
 	    mappedTo: string;
+	    severity: string;
+	    message: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new CellError(source);
@@ -22,6 +24,8 @@ export namespace main {
 	        this.charPos = source["charPos"];
 	        this.mapped = source["mapped"];
 	        this.mappedTo = source["mappedTo"];
+	        this.severity = source["severity"];
+	        this.message = source["message"];
 	    }
 	}
 	export class Field {
@@ -48,6 +52,9 @@ export namespace main {
 	    colorScheme: string;
 	    encoding: string;
 	    charMapping: Record<string, string>;
+	    fieldValues: Record<string, string>;
+	    servicePrices: Record<string, string>;
+	    recentFiles: string[];
 	    windowX: number;
 	    windowY: number;
 	    windowW: number;
@@ -62,6 +69,9 @@ export namespace main {
 	        this.colorScheme = source["colorScheme"];
 	        this.encoding = source["encoding"];
 	        this.charMapping = source["charMapping"];
+	        this.fieldValues = source["fieldValues"];
+	        this.servicePrices = source["servicePrices"];
+	        this.recentFiles = source["recentFiles"];
 	        this.windowX = source["windowX"];
 	        this.windowY = source["windowY"];
 	        this.windowW = source["windowW"];
