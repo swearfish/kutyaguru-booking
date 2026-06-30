@@ -1,6 +1,6 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { DataGrid, renderTextEditor } from 'react-data-grid'
-import type { Column, RenderCellProps, RowsChangeData } from 'react-data-grid'
+import type { Column, RenderCellProps, RowsChangeData, SortColumn } from 'react-data-grid'
 import { ActionIcon, Tooltip, useComputedColorScheme } from '@mantine/core'
 import * as main from '../../bindings/kutyaguru'
 import './DataTab.css'
@@ -14,6 +14,7 @@ interface Props {
   onToggleRow: (rowIndex: number, enabled: boolean) => void
   onToggleAll: (enabled: boolean) => void
   charMapping: Record<string, string>
+  filterText: string
 }
 
 function applyMapping(value: string, mapping: Record<string, string>): string {
@@ -21,8 +22,16 @@ function applyMapping(value: string, mapping: Record<string, string>): string {
   return [...value].map(ch => mapping[ch] ?? ch).join('')
 }
 
-export default function DataTab({ tableData, onCellChange, onAddToMapping, onToggleRow, onToggleAll, charMapping }: Props) {
+// Fold case and strip diacritics so a free-text search matches accented text
+// (Hungarian: "arvi" matches "árví"). Sorting uses the same normalization via
+// localeCompare's 'base' sensitivity.
+function normalize(value: string): string {
+  return value.toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '')
+}
+
+export default function DataTab({ tableData, onCellChange, onAddToMapping, onToggleRow, onToggleAll, charMapping, filterText }: Props) {
   const computedScheme = useComputedColorScheme('light')
+  const [sortColumns, setSortColumns] = useState<readonly SortColumn[]>([])
 
   const { errorMap, mappedMap, warnMap } = useMemo(() => {
     const errorMap = new Map<string, main.CellError>()
@@ -88,6 +97,7 @@ export default function DataTab({ tableData, onCellChange, onAddToMapping, onTog
       name: colName,
       editable: true,
       resizable: true,
+      sortable: true,
       width: 150,
       renderEditCell: renderTextEditor,
       cellClass: (row: GridRow) => {
@@ -162,11 +172,41 @@ export default function DataTab({ tableData, onCellChange, onAddToMapping, onTog
     })
   }, [tableData])
 
+  // displayRows is the view: a free-text filter (row kept if any column contains
+  // the query) followed by an optional single-column sort. An empty sortColumns
+  // (the default, and what a third header click restores) keeps natural import
+  // order — i.e. the sequential record number the CSV is keyed on. Filtering and
+  // sorting are view-only; export reads the backend's original rows.
+  const displayRows = useMemo<GridRow[]>(() => {
+    const q = normalize(filterText.trim())
+    let view = rows
+    if (q) {
+      view = view.filter(row =>
+        tableData.columns.some(col => normalize(String(row[col] ?? '')).includes(q)),
+      )
+    }
+    const sort = sortColumns[0]
+    if (sort) {
+      const dir = sort.direction === 'DESC' ? -1 : 1
+      view = [...view].sort((a, b) =>
+        String(a[sort.columnKey] ?? '').localeCompare(
+          String(b[sort.columnKey] ?? ''),
+          'hu',
+          { numeric: true, sensitivity: 'base' },
+        ) * dir,
+      )
+    }
+    return view
+  }, [rows, tableData.columns, filterText, sortColumns])
+
   function handleRowsChange(newRows: GridRow[], data: RowsChangeData<GridRow>) {
     const colName = data.column.key
     if (colName === '__enabled') return
+    // newRows is in display order (filtered/sorted); translate each changed
+    // position back to its backend row index before updating the model.
     for (const rowIdx of data.indexes) {
-      onCellChange(rowIdx, colName, String(newRows[rowIdx][colName] ?? ''))
+      const r = newRows[rowIdx]
+      onCellChange(r.__rowIndex, colName, String(r[colName] ?? ''))
     }
   }
 
@@ -182,9 +222,11 @@ export default function DataTab({ tableData, onCellChange, onAddToMapping, onTog
     <DataGrid
       className={computedScheme === 'dark' ? 'rdg-dark' : 'rdg-light'}
       columns={columns}
-      rows={rows}
+      rows={displayRows}
       rowKeyGetter={(row: GridRow) => row.__rowIndex}
       rowClass={(row: GridRow) => (tableData.rowEnabled?.[row.__rowIndex] === false ? 'disabledRow' : undefined)}
+      sortColumns={sortColumns}
+      onSortColumnsChange={cols => setSortColumns(cols.slice(-1))}
       onRowsChange={handleRowsChange}
       style={{ height: '100%', blockSize: '100%' }}
     />

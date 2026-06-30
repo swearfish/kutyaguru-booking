@@ -61,6 +61,7 @@ export default function App() {
   const [recentFiles, setRecentFiles] = useState<string[]>([])
   const [previewText, setPreviewText] = useState<string>('')
   const [previewMode, setPreviewMode] = useState<'table' | 'raw'>('table')
+  const [filterText, setFilterText] = useState<string>('')
   const [previewOpened, previewHandlers] = useDisclosure(false)
 
   // Load persisted settings on mount.
@@ -308,6 +309,8 @@ export default function App() {
           onSaveCSV={handleSaveCSV}
           onPreview={handlePreview}
           hasData={sheetNames.length > 0}
+          filterText={filterText}
+          onFilterChange={setFilterText}
         />
       </AppShell.Header>
 
@@ -326,7 +329,7 @@ export default function App() {
         {view === 'table' && (
           <div style={{ flex: 1, overflow: 'hidden', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
             <div style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
-              <DataTab tableData={tableData} onCellChange={handleCellChange} onAddToMapping={handleAddToMapping} onToggleRow={handleToggleRow} onToggleAll={handleToggleAll} charMapping={charMapping} />
+              <DataTab tableData={tableData} onCellChange={handleCellChange} onAddToMapping={handleAddToMapping} onToggleRow={handleToggleRow} onToggleAll={handleToggleAll} charMapping={charMapping} filterText={filterText} />
             </div>
             <SheetTabs sheets={sheetNames} selected={selectedSheet} onChange={handleSheetChange} />
           </div>

@@ -1,4 +1,4 @@
-import { Button, Group, Menu, Paper, Text, Tooltip } from '@mantine/core'
+import { Button, CloseButton, Group, Menu, Paper, Text, TextInput, Tooltip } from '@mantine/core'
 
 interface Props {
   onOpenFile: () => void
@@ -9,6 +9,8 @@ interface Props {
   onSaveCSV: () => void
   onPreview: () => void
   hasData: boolean
+  filterText: string
+  onFilterChange: (value: string) => void
 }
 
 // baseName returns the file name portion of a path for compact display.
@@ -19,6 +21,7 @@ function baseName(path: string): string {
 
 export default function Toolbar({
   onOpenFile, onOpenRecent, recentFiles, onExportExcel, onImportExcel, onSaveCSV, onPreview, hasData,
+  filterText, onFilterChange,
 }: Props) {
   return (
     <Paper h="100%" px="xs" radius={0} style={{ borderBottom: '1px solid var(--mantine-color-default-border)', display: 'flex', alignItems: 'center' }}>
@@ -85,6 +88,24 @@ export default function Toolbar({
           </Button>
         </Tooltip>
       </Group>
+
+      <TextInput
+        ml="auto"
+        size="sm"
+        w={240}
+        leftSection="🔍"
+        placeholder="Keresés minden oszlopban…"
+        aria-label="Szabadszavas keresés"
+        value={filterText}
+        onChange={e => onFilterChange(e.currentTarget.value)}
+        disabled={!hasData}
+        rightSectionPointerEvents="auto"
+        rightSection={
+          filterText ? (
+            <CloseButton size="sm" aria-label="Keresés törlése" onClick={() => onFilterChange('')} />
+          ) : null
+        }
+      />
     </Paper>
   )
 }
