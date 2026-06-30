@@ -4,11 +4,9 @@ import (
 	"bufio"
 	"bytes"
 	_ "embed"
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -60,33 +58,6 @@ const (
 
 const maxRecentFiles = 10
 
-// Settings holds user preferences persisted across sessions.
-type Settings struct {
-	ColorScheme string            `json:"colorScheme"` // "light" | "dark" | "auto"
-	Encoding    string            `json:"encoding"`    // "ISO-8859-2" | "UTF-8"
-	CharMapping map[string]string `json:"charMapping"` // unicode char → latin-2 replacement
-	FieldValues map[string]string `json:"fieldValues"` // persisted TEXT editable field values
-
-	ServicePrices map[string]string `json:"servicePrices"` // service name → net unit price
-	RecentFiles   []string          `json:"recentFiles"`   // most-recent-first, capped
-	WindowX       int               `json:"windowX"`
-	WindowY       int               `json:"windowY"`
-	WindowW       int               `json:"windowW"`
-	WindowH       int               `json:"windowH"`
-}
-
-func defaultSettings() Settings {
-	return Settings{
-		ColorScheme:   "auto",
-		Encoding:      "ISO-8859-2",
-		CharMapping:   map[string]string{},
-		FieldValues:   map[string]string{},
-		ServicePrices: map[string]string{},
-		WindowW:       1280,
-		WindowH:       800,
-	}
-}
-
 // Field is serialised to JSON and sent to the frontend for the Mezők tab.
 type Field struct {
 	Name    string    `json:"name"`
@@ -133,31 +104,24 @@ type editableFieldYAML struct {
 
 // Booking is the struct bound to Wails (registered as a v3 service).
 type Booking struct {
-	app          *application.App
-	win          *application.WebviewWindow
-	fields       []Field
-	columnNames  []string
-	rows         [][]string
-	rowEnabled   []bool // parallel to rows; true = included in CSV export. In-memory only.
-	tmpl         templateData
-	excelPath    string
-	cellErrors   []CellError
-	settings     Settings
-	settingsPath string
+	app         *application.App
+	win         *application.WebviewWindow
+	fields      []Field
+	columnNames []string
+	rows        [][]string
+	rowEnabled  []bool // parallel to rows; true = included in CSV export. In-memory only.
+	tmpl        templateData
+	excelPath   string
+	cellErrors  []CellError
+	settings    Settings
+	store       *settingsStore
 }
 
-func newBooking() *Booking { return &Booking{} }
+func newBooking() *Booking { return &Booking{store: newSettingsStore()} }
 
 func (b *Booking) init() error {
-	// Determine settings file path.
-	cfgDir, err := os.UserConfigDir()
-	if err != nil {
-		cfgDir = os.TempDir()
-	}
-	b.settingsPath = filepath.Join(cfgDir, "kutyaguru", "settings.json")
-
 	// Load persisted settings (falls back to defaults on any error).
-	b.settings = b.loadSettings()
+	b.settings = b.store.load()
 
 	fields, err := parseFieldsYAML(defaultFieldsYAML)
 	if err != nil {
@@ -192,41 +156,9 @@ func (b *Booking) restoreFieldValues() {
 	}
 }
 
-func (b *Booking) loadSettings() Settings {
-	s := defaultSettings()
-	data, err := os.ReadFile(b.settingsPath)
-	if err != nil {
-		return s
-	}
-	if err := json.Unmarshal(data, &s); err != nil {
-		return defaultSettings()
-	}
-	// Ensure non-zero window size after loading.
-	if s.WindowW == 0 {
-		s.WindowW = 1280
-	}
-	if s.WindowH == 0 {
-		s.WindowH = 800
-	}
-	if s.CharMapping == nil {
-		s.CharMapping = map[string]string{}
-	}
-	if s.FieldValues == nil {
-		s.FieldValues = map[string]string{}
-	}
-	if s.ServicePrices == nil {
-		s.ServicePrices = map[string]string{}
-	}
-	return s
-}
-
+// saveSettings flushes the live in-memory settings to disk via the store.
 func (b *Booking) saveSettings() {
-	data, err := json.MarshalIndent(b.settings, "", "  ")
-	if err != nil {
-		return
-	}
-	_ = os.MkdirAll(filepath.Dir(b.settingsPath), 0o755)
-	_ = os.WriteFile(b.settingsPath, data, 0o644)
+	b.store.save(b.settings)
 }
 
 // updateGeometry copies the live window position/size into the in-memory

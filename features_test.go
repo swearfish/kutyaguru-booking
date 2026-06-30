@@ -135,7 +135,7 @@ func TestFieldValuesRoundTrip(t *testing.T) {
 	}
 
 	// Reload settings from disk and re-apply onto freshly parsed fields.
-	reloaded := b.loadSettings()
+	reloaded := b.store.load()
 	if reloaded.FieldValues["Fizetési mód"] != "Átutalás" {
 		t.Fatalf("FieldValues not persisted to disk: %v", reloaded.FieldValues)
 	}

@@ -64,7 +64,7 @@ func createFixtureXLSX(path string) error {
 func newTestBooking(t *testing.T) *Booking {
 	t.Helper()
 	b := newBooking()
-	b.settingsPath = filepath.Join(t.TempDir(), "settings.json")
+	b.store = &settingsStore{path: filepath.Join(t.TempDir(), "settings.json")}
 	b.settings = defaultSettings()
 
 	fields, err := parseFieldsYAML(defaultFieldsYAML)
