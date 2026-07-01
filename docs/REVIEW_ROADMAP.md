@@ -106,8 +106,10 @@ Status legend: `[ ]` todo · `[~]` in progress · `[x]` done
   the now-redundant **null**-guards (`?.`, `?? []`) at the four use sites; kept the
   meaningful **index**-level defaults (`?? true` / `=== false`) which guard
   out-of-bounds access, a separate concern.
-- [ ] Document the Makefile Windows cross-build path in the README (currently only
-  the `wails3` path is documented).
+- [x] Document the Makefile Windows cross-build path in the README. Added a
+  "Cross-building the Windows `.exe` from macOS" subsection covering
+  `make windows-setup` / `windows` / `windows ARCH=arm64` and the
+  Windows-host-only `windows-package` (NSIS) caveat.
 - [ ] Prune sibling clutter from the workspace: `booking.go.v2-backup/`,
   `booking.py/`, `.idea/` (outside this module, but noise).
 
