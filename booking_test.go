@@ -72,9 +72,9 @@ func newTestBooking(t *testing.T) *Booking {
 		t.Fatal(err)
 	}
 	b.fields = fields
-	b.columnNames = make([]string, len(fields))
+	b.doc.columnNames = make([]string, len(fields))
 	for i, f := range fields {
-		b.columnNames[i] = f.Name
+		b.doc.columnNames[i] = f.Name
 	}
 
 	tmpl, err := loadTemplate(templateCSVBytes)
@@ -101,7 +101,7 @@ func TestCSVMatchesPythonGolden(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	if err := b.writeCSV(charmap.ISO8859_2.NewEncoder().Writer(&buf)); err != nil {
+	if err := b.doc.writeCSV(charmap.ISO8859_2.NewEncoder().Writer(&buf), b.tmpl, b.settings.CharMapping); err != nil {
 		t.Fatalf("writeCSV: %v", err)
 	}
 
@@ -139,8 +139,8 @@ func TestCSVRowCount(t *testing.T) {
 	if _, err := b.LoadSheet(fixtureSheet); err != nil {
 		t.Fatalf("LoadSheet: %v", err)
 	}
-	if len(b.rows) != len(fixtureRows) {
-		t.Errorf("row count: got %d, want %d", len(b.rows), len(fixtureRows))
+	if len(b.doc.rows) != len(fixtureRows) {
+		t.Errorf("row count: got %d, want %d", len(b.doc.rows), len(fixtureRows))
 	}
 }
 
@@ -154,7 +154,7 @@ func TestCSVMappedValues(t *testing.T) {
 
 	// "Partner megnevezése:" is mapped from "Ügyfél neve"
 	partnerIdx := -1
-	for i, name := range b.columnNames {
+	for i, name := range b.doc.columnNames {
 		if name == "Partner megnevezése:" {
 			partnerIdx = i
 			break
@@ -163,7 +163,7 @@ func TestCSVMappedValues(t *testing.T) {
 	if partnerIdx == -1 {
 		t.Fatal("column 'Partner megnevezése:' not found")
 	}
-	for ri, row := range b.rows {
+	for ri, row := range b.doc.rows {
 		want := fixtureRows[ri][0] // "Ügyfél neve" is fixtureHeaders[0]
 		if got := row[partnerIdx]; got != want {
 			t.Errorf("row %d Partner megnevezése: got %q, want %q", ri, got, want)

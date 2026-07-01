@@ -81,22 +81,22 @@ func TestExcelRoundTripPreservesToggles(t *testing.T) {
 	}
 
 	// Toggles restored on the same rows.
-	if got, want := b2.rowEnabled, []bool{false, true, false}; !reflect.DeepEqual(got, want) {
+	if got, want := b2.doc.rowEnabled, []bool{false, true, false}; !reflect.DeepEqual(got, want) {
 		t.Errorf("rowEnabled after round-trip: got %v, want %v", got, want)
 	}
 	// _Aktív must not leak into the schema or the row data.
-	if len(b2.columnNames) != len(b.columnNames) {
-		t.Errorf("column count changed: got %d, want %d (flag column leaked?)", len(b2.columnNames), len(b.columnNames))
+	if len(b2.doc.columnNames) != len(b.doc.columnNames) {
+		t.Errorf("column count changed: got %d, want %d (flag column leaked?)", len(b2.doc.columnNames), len(b.doc.columnNames))
 	}
-	if len(b2.rows) != len(b.rows) {
-		t.Fatalf("row count changed: got %d, want %d", len(b2.rows), len(b.rows))
+	if len(b2.doc.rows) != len(b.doc.rows) {
+		t.Fatalf("row count changed: got %d, want %d", len(b2.doc.rows), len(b.doc.rows))
 	}
-	for ri := range b2.rows {
-		if len(b2.rows[ri]) != len(b.columnNames) {
-			t.Errorf("row %d width %d, want %d (flag column leaked into data)", ri, len(b2.rows[ri]), len(b.columnNames))
+	for ri := range b2.doc.rows {
+		if len(b2.doc.rows[ri]) != len(b.doc.columnNames) {
+			t.Errorf("row %d width %d, want %d (flag column leaked into data)", ri, len(b2.doc.rows[ri]), len(b.doc.columnNames))
 		}
-		if !reflect.DeepEqual(b2.rows[ri], b.rows[ri]) {
-			t.Errorf("row %d data differs after round-trip:\n got:  %q\n want: %q", ri, b2.rows[ri], b.rows[ri])
+		if !reflect.DeepEqual(b2.doc.rows[ri], b.doc.rows[ri]) {
+			t.Errorf("row %d data differs after round-trip:\n got:  %q\n want: %q", ri, b2.doc.rows[ri], b.doc.rows[ri])
 		}
 	}
 }
@@ -105,21 +105,21 @@ func TestExcelRoundTripPreservesToggles(t *testing.T) {
 // row no longer blocks CSV export (and that an enabled one still does).
 func TestDisabledRowDoesNotBlockExport(t *testing.T) {
 	b := newTestBooking(t)
-	b.columnNames = []string{"Megjegyzés"}
+	b.doc.columnNames = []string{"Megjegyzés"}
 	b.settings.Encoding = "ISO-8859-2"
 	b.settings.CharMapping = map[string]string{}
-	b.rows = [][]string{{"árvíztűrő ▲"}} // ▲ is not in ISO-8859-2
-	b.rowEnabled = newEnabledSlice(len(b.rows))
-	b.cellErrors = b.validateAllCells()
+	b.doc.rows = [][]string{{"árvíztűrő ▲"}} // ▲ is not in ISO-8859-2
+	b.doc.rowEnabled = newEnabledSlice(len(b.doc.rows))
+	b.doc.cellErrors = b.doc.validate(b.settings)
 
 	// Enabled: the error blocks export.
-	if err := b.blockingExportError(); err == nil {
+	if err := b.doc.blockingExportError(); err == nil {
 		t.Fatal("expected export to be blocked while the error row is enabled")
 	}
 
 	// Disabled: the same error no longer blocks export.
 	b.SetRowEnabled(0, false)
-	if err := b.blockingExportError(); err != nil {
+	if err := b.doc.blockingExportError(); err != nil {
 		t.Errorf("disabled error row should not block export, got: %v", err)
 	}
 

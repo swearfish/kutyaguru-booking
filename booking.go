@@ -102,19 +102,18 @@ type editableFieldYAML struct {
 	Plus    int      `yaml:"plus"`
 }
 
-// Booking is the struct bound to Wails (registered as a v3 service).
+// Booking is the struct bound to Wails (registered as a v3 service). It owns the
+// application-level concerns (field schema, window, settings, Excel/dialog I/O)
+// and delegates all table state and operations to doc.
 type Booking struct {
-	app         *application.App
-	win         *application.WebviewWindow
-	fields      []Field
-	columnNames []string
-	rows        [][]string
-	rowEnabled  []bool // parallel to rows; true = included in CSV export. In-memory only.
-	tmpl        templateData
-	excelPath   string
-	cellErrors  []CellError
-	settings    Settings
-	store       *settingsStore
+	app       *application.App
+	win       *application.WebviewWindow
+	fields    []Field
+	doc       document
+	tmpl      templateData
+	excelPath string
+	settings  Settings
+	store     *settingsStore
 }
 
 func newBooking() *Booking { return &Booking{store: newSettingsStore()} }
@@ -129,9 +128,9 @@ func (b *Booking) init() error {
 	}
 	b.fields = fields
 	b.restoreFieldValues()
-	b.columnNames = make([]string, len(fields))
+	b.doc.columnNames = make([]string, len(fields))
 	for i, f := range fields {
-		b.columnNames[i] = f.Name
+		b.doc.columnNames[i] = f.Name
 	}
 
 	tmpl, err := loadTemplate(templateCSVBytes)
@@ -209,8 +208,8 @@ func (b *Booking) SetColorScheme(scheme string) {
 func (b *Booking) SetEncoding(enc string) TableDataResult {
 	b.settings.Encoding = enc
 	b.saveSettings()
-	b.cellErrors = b.validateAllCells()
-	return b.buildResult()
+	b.doc.cellErrors = b.doc.validate(b.settings)
+	return b.doc.buildResult()
 }
 
 // GetCharMapping returns the current unicode→replacement substitution map.
@@ -222,8 +221,8 @@ func (b *Booking) GetCharMapping() map[string]string {
 func (b *Booking) SetCharMapping(m map[string]string) TableDataResult {
 	b.settings.CharMapping = m
 	b.saveSettings()
-	b.cellErrors = b.validateAllCells()
-	return b.buildResult()
+	b.doc.cellErrors = b.doc.validate(b.settings)
+	return b.doc.buildResult()
 }
 
 // GetServicePrices returns the current service → net-unit-price lookup.
@@ -236,9 +235,9 @@ func (b *Booking) GetServicePrices() map[string]string {
 func (b *Booking) SetServicePrices(m map[string]string) TableDataResult {
 	b.settings.ServicePrices = m
 	b.saveSettings()
-	b.applyServicePrices()
-	b.cellErrors = b.validateAllCells()
-	return b.buildResult()
+	b.doc.applyServicePrices(b.settings.ServicePrices)
+	b.doc.cellErrors = b.doc.validate(b.settings)
+	return b.doc.buildResult()
 }
 
 // OpenBookedFile shows a file-open dialog for xlsx files and returns the sheet names.
@@ -329,10 +328,10 @@ func (b *Booking) LoadSheet(sheetName string) (TableDataResult, error) {
 		return TableDataResult{}, fmt.Errorf("munkalap olvasási hiba: %w", err)
 	}
 	if len(allRows) == 0 {
-		b.rows = nil
-		b.rowEnabled = nil
-		b.cellErrors = nil
-		return b.buildResult(), nil
+		b.doc.rows = nil
+		b.doc.rowEnabled = nil
+		b.doc.cellErrors = nil
+		return b.doc.buildResult(), nil
 	}
 
 	headerRow := allRows[0]
@@ -341,7 +340,7 @@ func (b *Booking) LoadSheet(sheetName string) (TableDataResult, error) {
 		headerIndex[h] = i
 	}
 
-	b.rows = make([][]string, 0, len(allRows)-1)
+	b.doc.rows = make([][]string, 0, len(allRows)-1)
 	for _, dataRow := range allRows[1:] {
 		row := make([]string, len(b.fields))
 		for i, field := range b.fields {
@@ -354,13 +353,13 @@ func (b *Booking) LoadSheet(sheetName string) (TableDataResult, error) {
 				row[i] = field.Value
 			}
 		}
-		b.rows = append(b.rows, row)
+		b.doc.rows = append(b.doc.rows, row)
 	}
-	b.rowEnabled = newEnabledSlice(len(b.rows))
+	b.doc.rowEnabled = newEnabledSlice(len(b.doc.rows))
 
-	b.applyServicePrices()
-	b.cellErrors = b.validateAllCells()
-	return b.buildResult(), nil
+	b.doc.applyServicePrices(b.settings.ServicePrices)
+	b.doc.cellErrors = b.doc.validate(b.settings)
+	return b.doc.buildResult(), nil
 }
 
 // GetFields returns the current field definitions for the Mezők tab.
@@ -393,93 +392,50 @@ func (b *Booking) UpdateFieldValue(fieldName, value string) error {
 
 // ReapplyFields re-applies current editable/const/date field values to all non-MAPPING rows.
 func (b *Booking) ReapplyFields() TableDataResult {
-	colIndex := make(map[string]int, len(b.columnNames))
-	for i, name := range b.columnNames {
+	colIndex := make(map[string]int, len(b.doc.columnNames))
+	for i, name := range b.doc.columnNames {
 		colIndex[name] = i
 	}
-	for ri := range b.rows {
+	for ri := range b.doc.rows {
 		for _, field := range b.fields {
 			if field.Type == FieldTypeMapping {
 				continue
 			}
 			if idx, ok := colIndex[field.Name]; ok {
-				b.rows[ri][idx] = field.Value
+				b.doc.rows[ri][idx] = field.Value
 			}
 		}
 	}
-	b.applyServicePrices()
-	b.cellErrors = b.validateAllCells()
-	return b.buildResult()
+	b.doc.applyServicePrices(b.settings.ServicePrices)
+	b.doc.cellErrors = b.doc.validate(b.settings)
+	return b.doc.buildResult()
 }
 
 // UpdateCell mutates one cell and re-validates it in place.
 func (b *Booking) UpdateCell(rowIndex int, colName, value string) TableDataResult {
-	colIdx := -1
-	for i, name := range b.columnNames {
-		if name == colName {
-			colIdx = i
-			break
-		}
-	}
-	if colIdx >= 0 && rowIndex >= 0 && rowIndex < len(b.rows) {
-		b.rows[rowIndex][colIdx] = value
-	}
+	b.doc.updateCell(rowIndex, colName, value)
 	// Full revalidation keeps content and unpriced-service warnings consistent
 	// when editing a service or price cell affects another cell. Tables are
 	// small (tens of rows), so the cost is negligible.
-	b.cellErrors = b.validateAllCells()
-	return b.buildResult()
+	b.doc.cellErrors = b.doc.validate(b.settings)
+	return b.doc.buildResult()
 }
 
 // SetRowEnabled toggles whether a single row is included in CSV export.
 func (b *Booking) SetRowEnabled(rowIndex int, enabled bool) TableDataResult {
-	if rowIndex >= 0 && rowIndex < len(b.rows) {
-		b.ensureRowEnabled()
-		b.rowEnabled[rowIndex] = enabled
-	}
-	return b.buildResult()
+	b.doc.setRowEnabled(rowIndex, enabled)
+	return b.doc.buildResult()
 }
 
 // SetAllRowsEnabled toggles every row on or off (select-all / select-none).
 func (b *Booking) SetAllRowsEnabled(enabled bool) TableDataResult {
-	b.rowEnabled = make([]bool, len(b.rows))
-	for i := range b.rowEnabled {
-		b.rowEnabled[i] = enabled
-	}
-	return b.buildResult()
-}
-
-// newEnabledSlice returns a length-n slice with every row enabled. (make([]bool,n)
-// is all-false, so the flags must be set explicitly.)
-func newEnabledSlice(n int) []bool {
-	s := make([]bool, n)
-	for i := range s {
-		s[i] = true
-	}
-	return s
-}
-
-// rowIsEnabled reports whether row i is included in export. A nil or too-short
-// rowEnabled (e.g. tests that assign b.rows directly) counts as enabled, so no
-// path can panic or silently drop every row.
-func (b *Booking) rowIsEnabled(i int) bool {
-	return i >= len(b.rowEnabled) || b.rowEnabled[i]
-}
-
-// ensureRowEnabled (re)sizes rowEnabled to match len(b.rows), preserving existing
-// flags and defaulting any new entries to enabled.
-func (b *Booking) ensureRowEnabled() {
-	if len(b.rowEnabled) == len(b.rows) {
-		return
-	}
-	next := newEnabledSlice(len(b.rows))
-	copy(next, b.rowEnabled)
-	b.rowEnabled = next
+	b.doc.setAllRowsEnabled(enabled)
+	return b.doc.buildResult()
 }
 
 // GetTableData returns the current in-memory table.
 func (b *Booking) GetTableData() TableDataResult {
-	return b.buildResult()
+	return b.doc.buildResult()
 }
 
 // ExportToExcel saves the current rows to an xlsx file chosen via save dialog.
@@ -509,21 +465,21 @@ func (b *Booking) writeExcelTo(path string) error {
 	sheet := "Sheet1"
 
 	// Header row: the data columns, then the trailing on/off flag column.
-	for ci, name := range b.columnNames {
+	for ci, name := range b.doc.columnNames {
 		cell, _ := excelize.CoordinatesToCellName(ci+1, 1)
 		f.SetCellValue(sheet, cell, name)
 	}
-	flagCol := len(b.columnNames) + 1
+	flagCol := len(b.doc.columnNames) + 1
 	if cell, err := excelize.CoordinatesToCellName(flagCol, 1); err == nil {
 		f.SetCellValue(sheet, cell, colEnabledHeader)
 	}
-	for ri, row := range b.rows {
+	for ri, row := range b.doc.rows {
 		for ci, val := range row {
 			cell, _ := excelize.CoordinatesToCellName(ci+1, ri+2)
 			f.SetCellValue(sheet, cell, val)
 		}
 		flag := "0"
-		if b.rowIsEnabled(ri) {
+		if b.doc.rowIsEnabled(ri) {
 			flag = "1"
 		}
 		if cell, err := excelize.CoordinatesToCellName(flagCol, ri+2); err == nil {
@@ -541,17 +497,17 @@ func (b *Booking) ImportFromExcel() (TableDataResult, error) {
 		AttachToWindow(b.win).
 		PromptForSingleSelection()
 	if err != nil || path == "" {
-		return b.buildResult(), err
+		return b.doc.buildResult(), err
 	}
 	if err := b.readExcelFrom(path); err != nil {
 		return TableDataResult{}, err
 	}
-	return b.buildResult(), nil
+	return b.doc.buildResult(), nil
 }
 
-// readExcelFrom replaces b.rows / b.rowEnabled / b.cellErrors from an xlsx file.
+// readExcelFrom replaces b.doc.rows / b.doc.rowEnabled / b.doc.cellErrors from an xlsx file.
 // The flag column (colEnabledHeader) is matched by name and is not a data column,
-// so it never leaks into b.columnNames / b.rows. Files without it load as all-on.
+// so it never leaks into b.doc.columnNames / b.doc.rows. Files without it load as all-on.
 func (b *Booking) readExcelFrom(path string) error {
 	f, err := excelize.OpenFile(path, excelize.Options{RawCellValue: false})
 	if err != nil {
@@ -575,25 +531,25 @@ func (b *Booking) readExcelFrom(path string) error {
 	}
 	enabledIdx, hasEnabled := importIndex[colEnabledHeader]
 
-	b.rows = make([][]string, 0, len(allRows)-1)
-	b.rowEnabled = make([]bool, 0, len(allRows)-1)
+	b.doc.rows = make([][]string, 0, len(allRows)-1)
+	b.doc.rowEnabled = make([]bool, 0, len(allRows)-1)
 	for _, dataRow := range allRows[1:] {
-		row := make([]string, len(b.columnNames))
-		for ci, name := range b.columnNames {
+		row := make([]string, len(b.doc.columnNames))
+		for ci, name := range b.doc.columnNames {
 			if idx, ok := importIndex[name]; ok && idx < len(dataRow) {
 				row[ci] = dataRow[idx]
 			}
 		}
-		b.rows = append(b.rows, row)
+		b.doc.rows = append(b.doc.rows, row)
 		// A row is enabled unless the flag column explicitly says "0". Files
 		// without the flag column (plain Booked4us exports) load as all-on.
 		enabled := true
 		if hasEnabled && enabledIdx < len(dataRow) {
 			enabled = strings.TrimSpace(dataRow[enabledIdx]) != "0"
 		}
-		b.rowEnabled = append(b.rowEnabled, enabled)
+		b.doc.rowEnabled = append(b.doc.rowEnabled, enabled)
 	}
-	b.cellErrors = b.validateAllCells()
+	b.doc.cellErrors = b.doc.validate(b.settings)
 	return nil
 }
 
@@ -601,7 +557,7 @@ func (b *Booking) readExcelFrom(path string) error {
 // SaveCSV returns true when a file was written, false when the user cancelled
 // the dialog (so the frontend can skip the success notification).
 func (b *Booking) SaveCSV() (bool, error) {
-	if err := b.blockingExportError(); err != nil {
+	if err := b.doc.blockingExportError(); err != nil {
 		return false, err
 	}
 
@@ -625,7 +581,7 @@ func (b *Booking) SaveCSV() (bool, error) {
 		w = charmap.ISO8859_2.NewEncoder().Writer(file)
 	}
 
-	if err := b.writeCSV(w); err != nil {
+	if err := b.doc.writeCSV(w, b.tmpl, b.settings.CharMapping); err != nil {
 		return false, err
 	}
 	return true, nil
@@ -636,7 +592,7 @@ func (b *Booking) SaveCSV() (bool, error) {
 // encoding.
 func (b *Booking) PreviewCSV() (string, error) {
 	var buf bytes.Buffer
-	if err := b.writeCSV(&buf); err != nil {
+	if err := b.doc.writeCSV(&buf, b.tmpl, b.settings.CharMapping); err != nil {
 		return "", err
 	}
 	return buf.String(), nil
@@ -645,188 +601,6 @@ func (b *Booking) PreviewCSV() (string, error) {
 // GetStatus returns the currently open Excel file path for the status bar.
 func (b *Booking) GetStatus() string {
 	return b.excelPath
-}
-
-// ─── Internal helpers ─────────────────────────────────────────────────────────
-
-func (b *Booking) buildResult() TableDataResult {
-	cols := make([]string, len(b.columnNames))
-	copy(cols, b.columnNames)
-	rows := make([][]string, len(b.rows))
-	for i, r := range b.rows {
-		rows[i] = make([]string, len(r))
-		copy(rows[i], r)
-	}
-	errs := make([]CellError, len(b.cellErrors))
-	copy(errs, b.cellErrors)
-	// Synthesize a fresh, full-length, non-nil slice so the frontend can index it
-	// directly (len == len(rows)) and it marshals to [] not null. Missing/short
-	// b.rowEnabled defaults to enabled.
-	enabled := make([]bool, len(b.rows))
-	for i := range enabled {
-		enabled[i] = i >= len(b.rowEnabled) || b.rowEnabled[i]
-	}
-	return TableDataResult{Columns: cols, Rows: rows, RowEnabled: enabled, CellErrors: errs}
-}
-
-func (b *Booking) getCellByColName(row []string, colName string) string {
-	for i, name := range b.columnNames {
-		if name == colName && i < len(row) {
-			return row[i]
-		}
-	}
-	return ""
-}
-
-// colIndex returns the column index for the given output column name, or -1.
-func (b *Booking) colIndex(colName string) int {
-	for i, name := range b.columnNames {
-		if name == colName {
-			return i
-		}
-	}
-	return -1
-}
-
-// applyServicePrices overwrites each row's net-unit-price cell with the price
-// configured for that row's service, when one exists. Rows whose service has no
-// configured price keep whatever value is already there (the flat default).
-func (b *Booking) applyServicePrices() {
-	if len(b.settings.ServicePrices) == 0 {
-		return
-	}
-	svcIdx := b.colIndex(colService)
-	priceIdx := b.colIndex(colPrice)
-	if svcIdx < 0 || priceIdx < 0 {
-		return
-	}
-	for ri := range b.rows {
-		if svcIdx >= len(b.rows[ri]) || priceIdx >= len(b.rows[ri]) {
-			continue
-		}
-		if price, ok := b.settings.ServicePrices[b.rows[ri][svcIdx]]; ok {
-			b.rows[ri][priceIdx] = price
-		}
-	}
-}
-
-// severityRank orders the three severities so the most important issue wins
-// when several apply to the same cell (error > warning > mapped).
-func severityRank(s string) int {
-	switch s {
-	case severityError:
-		return 3
-	case severityWarning:
-		return 2
-	case severityMapped:
-		return 1
-	default:
-		return 0
-	}
-}
-
-// validateAllCells produces one CellError per problematic cell. Encoding checks
-// run only outside UTF-8 mode; content-quality and unpriced-service warnings run
-// always (content validity is encoding-independent).
-func (b *Booking) validateAllCells() []CellError {
-	checkEncoding := !strings.EqualFold(b.settings.Encoding, "UTF-8")
-	svcIdx := b.colIndex(colService)
-	priceIdx := b.colIndex(colPrice)
-
-	// Keep the highest-severity issue per cell, keyed by "row:col".
-	best := make(map[string]CellError)
-	consider := func(ce CellError, ok bool) {
-		if !ok {
-			return
-		}
-		key := fmt.Sprintf("%d:%s", ce.RowIndex, ce.ColName)
-		if cur, exists := best[key]; !exists || severityRank(ce.Severity) > severityRank(cur.Severity) {
-			best[key] = ce
-		}
-	}
-
-	for ri, row := range b.rows {
-		for ci, val := range row {
-			colName := b.columnNames[ci]
-			if checkEncoding {
-				consider(validateCell(ri, colName, val, b.settings.CharMapping))
-			}
-			consider(validateContent(ri, colName, val))
-			// Unpriced-service warning: the net-unit-price cell of a row whose
-			// service has no configured price.
-			if ci == priceIdx && svcIdx >= 0 && svcIdx < len(row) {
-				svc := row[svcIdx]
-				if _, priced := b.settings.ServicePrices[svc]; !priced && strings.TrimSpace(svc) != "" {
-					consider(CellError{RowIndex: ri, ColName: colName, Value: val,
-						Severity: severityWarning,
-						Message:  "Nincs ár ehhez a szolgáltatáshoz"}, true)
-				}
-			}
-		}
-	}
-
-	errs := make([]CellError, 0, len(best))
-	for _, ce := range best {
-		errs = append(errs, ce)
-	}
-	return errs
-}
-
-// applyMapping substitutes characters in value using the char mapping.
-func (b *Booking) applyMapping(value string) string {
-	if len(b.settings.CharMapping) == 0 {
-		return value
-	}
-	var sb strings.Builder
-	for _, r := range value {
-		if repl, ok := b.settings.CharMapping[string(r)]; ok {
-			sb.WriteString(repl)
-		} else {
-			sb.WriteRune(r)
-		}
-	}
-	return sb.String()
-}
-
-// blockingExportError returns a non-nil error if any ENABLED row has an
-// un-encodable cell, which must block CSV export. Errors in disabled rows are
-// ignored because those rows aren't written. Returns nil when export may proceed.
-func (b *Booking) blockingExportError() error {
-	for _, ce := range b.cellErrors {
-		if ce.Severity == severityError && b.rowIsEnabled(ce.RowIndex) {
-			return fmt.Errorf("nem menthető: a %d. sor %q oszlopában nem kódolható karakter: %q (pozíció: %d)",
-				ce.RowIndex+1, ce.ColName, ce.InvalidChar, ce.CharPos)
-		}
-	}
-	return nil
-}
-
-func (b *Booking) writeCSV(w io.Writer) error {
-	bw := bufio.NewWriter(w)
-	defer bw.Flush()
-
-	for _, line := range b.tmpl.HeaderLines {
-		fmt.Fprintln(bw, line)
-	}
-	for _, colDef := range b.tmpl.ColDefLines {
-		fmt.Fprintln(bw, strings.Join(colDef, ";"))
-	}
-	num := 0
-	for i, row := range b.rows {
-		if !b.rowIsEnabled(i) {
-			continue
-		}
-		num++
-		fmt.Fprintf(bw, "%d", num)
-		for _, colDef := range b.tmpl.ColDefLines {
-			for _, colName := range colDef {
-				cell := b.applyMapping(b.getCellByColName(row, colName))
-				fmt.Fprintf(bw, "%s;", cell)
-			}
-			fmt.Fprintln(bw)
-		}
-	}
-	return nil
 }
 
 // ─── Standalone functions ─────────────────────────────────────────────────────

@@ -56,15 +56,15 @@ func TestApplyServicePrices(t *testing.T) {
 		t.Fatalf("LoadSheet: %v", err)
 	}
 
-	svcIdx := b.colIndex(colService)
-	priceIdx := b.colIndex(colPrice)
+	svcIdx := b.doc.colIndex(colService)
+	priceIdx := b.doc.colIndex(colPrice)
 	if svcIdx < 0 || priceIdx < 0 {
 		t.Fatalf("columns not found: svc=%d price=%d", svcIdx, priceIdx)
 	}
 
 	// Price only the first row's service; others keep the default.
-	targetSvc := b.rows[0][svcIdx]
-	defaultPrice := b.rows[0][priceIdx]
+	targetSvc := b.doc.rows[0][svcIdx]
+	defaultPrice := b.doc.rows[0][priceIdx]
 	res := b.SetServicePrices(map[string]string{targetSvc: "9 999 Ft"})
 
 	for ri, row := range res.Rows {
@@ -87,16 +87,16 @@ func TestUnpricedServiceWarning(t *testing.T) {
 	}
 
 	// With no prices configured every row's price cell should warn.
-	for ri := range b.rows {
-		ce, ok := findCellError(b.cellErrors, ri, colPrice)
+	for ri := range b.doc.rows {
+		ce, ok := findCellError(b.doc.cellErrors, ri, colPrice)
 		if !ok || ce.Severity != severityWarning {
 			t.Errorf("row %d: expected unpriced-service warning, got %+v (ok=%v)", ri, ce, ok)
 		}
 	}
 
 	// After pricing the first row's service, that row no longer warns.
-	svcIdx := b.colIndex(colService)
-	res := b.SetServicePrices(map[string]string{b.rows[0][svcIdx]: "1 000 Ft"})
+	svcIdx := b.doc.colIndex(colService)
+	res := b.SetServicePrices(map[string]string{b.doc.rows[0][svcIdx]: "1 000 Ft"})
 	if ce, ok := findCellError(res.CellErrors, 0, colPrice); ok && ce.Severity == severityWarning {
 		t.Errorf("row 0 still warns after pricing: %+v", ce)
 	}
@@ -104,20 +104,20 @@ func TestUnpricedServiceWarning(t *testing.T) {
 
 func TestSeverityClassification(t *testing.T) {
 	b := newTestBooking(t)
-	b.columnNames = []string{"Megjegyzés"} // a column not subject to content rules
+	b.doc.columnNames = []string{"Megjegyzés"} // a column not subject to content rules
 	b.settings.ServicePrices = map[string]string{}
 
 	// Unmappable char (no mapping) → error (blocks export).
 	b.settings.CharMapping = map[string]string{}
-	b.rows = [][]string{{"árvíztűrő ▲"}} // ▲ is not in ISO-8859-2
-	errs := b.validateAllCells()
+	b.doc.rows = [][]string{{"árvíztűrő ▲"}} // ▲ is not in ISO-8859-2
+	errs := b.doc.validate(b.settings)
 	if ce, ok := findCellError(errs, 0, "Megjegyzés"); !ok || ce.Severity != severityError {
 		t.Errorf("unmapped char: got %+v (ok=%v), want severity %q", ce, ok, severityError)
 	}
 
 	// Same char, now mapped → mapped (yellow, does not block).
 	b.settings.CharMapping = map[string]string{"▲": "^"}
-	errs = b.validateAllCells()
+	errs = b.doc.validate(b.settings)
 	if ce, ok := findCellError(errs, 0, "Megjegyzés"); !ok || ce.Severity != severityMapped {
 		t.Errorf("mapped char: got %+v (ok=%v), want severity %q", ce, ok, severityMapped)
 	}
