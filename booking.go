@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
@@ -111,8 +112,20 @@ type Booking struct {
 	doc       document
 	tmpl      templateData
 	excelPath string
-	settings  Settings
-	store     *settingsStore
+
+	// mu guards settings. It is contended by construction: the native window
+	// event loop mutates settings.Window* on move/resize/close, while Wails
+	// dispatches every bound service call on its own net/http goroutine — so a
+	// geometry write can race the whole-struct marshal in saveSettings, or a
+	// setter replacing one of the maps. mu serialises those. It does NOT cover
+	// doc: doc is reached only through bound calls, which the UI issues one at a
+	// time, so it has no concurrent-by-construction writer. For the same reason a
+	// few non-Window settings reads on bound-call goroutines (SaveCSV, LoadSheet,
+	// PreviewCSV) read the maps without mu: the geometry loop never writes those
+	// fields, and the setters that do are UI-serialised against them, same as doc.
+	mu       sync.Mutex
+	settings Settings
+	store    *settingsStore
 }
 
 func newBooking() *Booking { return &Booking{store: newSettingsStore()} }
@@ -154,8 +167,18 @@ func (b *Booking) restoreFieldValues() {
 	}
 }
 
-// saveSettings flushes the live in-memory settings to disk via the store.
+// saveSettings flushes the live in-memory settings to disk via the store,
+// holding mu across the marshal so it cannot observe a half-written struct.
 func (b *Booking) saveSettings() {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.persist()
+}
+
+// persist flushes settings to disk without locking. The caller MUST already
+// hold mu; it exists so the map-mutating setters can do "mutate + flush" as one
+// critical section without re-locking (mu is not reentrant).
+func (b *Booking) persist() {
 	b.store.save(b.settings)
 }
 
@@ -168,8 +191,10 @@ func (b *Booking) updateGeometry() {
 	}
 	x, y := b.win.Position()
 	w, h := b.win.Size()
+	b.mu.Lock()
 	b.settings.WindowX, b.settings.WindowY = x, y
 	b.settings.WindowW, b.settings.WindowH = w, h
+	b.mu.Unlock()
 }
 
 // ServiceShutdown flushes the (already-fresh) settings to disk when the app
@@ -186,56 +211,78 @@ func (b *Booking) ServiceShutdown() error {
 
 // GetSettings returns the current user settings (called on frontend mount).
 func (b *Booking) GetSettings() Settings {
+	b.mu.Lock()
+	defer b.mu.Unlock()
 	return b.settings
 }
 
 // SaveSettings persists the given settings to disk (called when user changes theme/encoding).
 func (b *Booking) SaveSettings(s Settings) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
 	b.settings = s
-	b.saveSettings()
+	b.persist()
 	return nil
 }
 
 // SetColorScheme persists the UI color scheme ("light" | "dark" | "auto").
 func (b *Booking) SetColorScheme(scheme string) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
 	b.settings.ColorScheme = scheme
-	b.saveSettings()
+	b.persist()
 }
 
 // SetEncoding updates the CSV encoding, re-validates all cells, persists the
 // choice, and returns the new table state.
 func (b *Booking) SetEncoding(enc string) TableDataResult {
+	b.mu.Lock()
 	b.settings.Encoding = enc
-	b.saveSettings()
-	b.doc.cellErrors = b.doc.validate(b.settings)
+	b.persist()
+	s := b.settings
+	b.mu.Unlock()
+
+	b.doc.cellErrors = b.doc.validate(s)
 	return b.doc.buildResult()
 }
 
 // GetCharMapping returns the current unicode→replacement substitution map.
 func (b *Booking) GetCharMapping() map[string]string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
 	return b.settings.CharMapping
 }
 
 // SetCharMapping replaces the substitution map, re-validates all cells, saves settings.
 func (b *Booking) SetCharMapping(m map[string]string) TableDataResult {
+	b.mu.Lock()
 	b.settings.CharMapping = m
-	b.saveSettings()
-	b.doc.cellErrors = b.doc.validate(b.settings)
+	b.persist()
+	s := b.settings
+	b.mu.Unlock()
+
+	b.doc.cellErrors = b.doc.validate(s)
 	return b.doc.buildResult()
 }
 
 // GetServicePrices returns the current service → net-unit-price lookup.
 func (b *Booking) GetServicePrices() map[string]string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
 	return b.settings.ServicePrices
 }
 
 // SetServicePrices replaces the price lookup, re-applies it to all rows,
 // re-validates, and saves settings.
 func (b *Booking) SetServicePrices(m map[string]string) TableDataResult {
+	b.mu.Lock()
 	b.settings.ServicePrices = m
-	b.saveSettings()
-	b.doc.applyServicePrices(b.settings.ServicePrices)
-	b.doc.cellErrors = b.doc.validate(b.settings)
+	b.persist()
+	s := b.settings
+	b.mu.Unlock()
+
+	b.doc.applyServicePrices(s.ServicePrices)
+	b.doc.cellErrors = b.doc.validate(s)
 	return b.doc.buildResult()
 }
 
@@ -263,6 +310,8 @@ func (b *Booking) OpenBookedFile() ([]string, error) {
 
 // GetRecentFiles returns the most-recently-opened file paths (newest first).
 func (b *Booking) GetRecentFiles() []string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
 	return b.settings.RecentFiles
 }
 
@@ -281,6 +330,8 @@ func (b *Booking) LoadRecentFile(path string) ([]string, error) {
 
 // pushRecent moves path to the front of the recent list (deduped, capped).
 func (b *Booking) pushRecent(path string) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
 	list := make([]string, 0, maxRecentFiles)
 	list = append(list, path)
 	for _, p := range b.settings.RecentFiles {
@@ -292,19 +343,21 @@ func (b *Booking) pushRecent(path string) {
 		list = list[:maxRecentFiles]
 	}
 	b.settings.RecentFiles = list
-	b.saveSettings()
+	b.persist()
 }
 
 // removeRecent drops path from the recent list.
 func (b *Booking) removeRecent(path string) {
-	list := b.settings.RecentFiles[:0]
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	list := make([]string, 0, len(b.settings.RecentFiles))
 	for _, p := range b.settings.RecentFiles {
 		if p != path {
 			list = append(list, p)
 		}
 	}
 	b.settings.RecentFiles = list
-	b.saveSettings()
+	b.persist()
 }
 
 // LoadSheet reads the named sheet from the already-opened Excel file.
@@ -344,11 +397,13 @@ func (b *Booking) UpdateFieldValue(fieldName, value string) error {
 			// Persist editable (TEXT) values so they survive restarts; DATE
 			// fields stay transient (recomputed from today on each launch).
 			if b.fields[i].Type == FieldTypeText {
+				b.mu.Lock()
 				if b.settings.FieldValues == nil {
 					b.settings.FieldValues = map[string]string{}
 				}
 				b.settings.FieldValues[fieldName] = value
-				b.saveSettings()
+				b.persist()
+				b.mu.Unlock()
 			}
 			return nil
 		}

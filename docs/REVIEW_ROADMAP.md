@@ -10,18 +10,23 @@ Status legend: `[ ]` todo · `[~]` in progress · `[x]` done
 
 ## Priority 1 — act on before the codebase grows
 
-- [ ] **Split the `Booking` god-object** (`booking.go:135`)
+- [x] **Split the `Booking` god-object** (`booking.go:135`)
   Extract the six mixed concerns into focused units:
-  - [ ] `document` — `rows` / `rowEnabled` / `columnNames` / `cellErrors` + their mutators
-  - [ ] `settingsStore` — load/save + the per-field setters
-  - [ ] Excel import/export as free functions taking the document
-  - [ ] CSV render as a free function taking the document
-  - [ ] `Booking` becomes a thin Wails facade delegating to the above
+  - [x] `document` — `rows` / `rowEnabled` / `columnNames` / `cellErrors` + their mutators (`document.go`)
+  - [x] `settingsStore` — load/save persistence boundary (`settings.go`)
+  - [x] Excel import/export as free functions on primitives (`excel.go`)
+  - [x] CSV render as a `document` method taking template + char mapping (`document.go`)
+  - [x] `Booking` becomes a thin Wails facade delegating to the above
 
-- [ ] **Guard `b.settings` against data races** (`main.go:55-60`, `booking.go:223`)
-  Window events mutate `settings.Window*` while service calls marshal/mutate the
-  same struct (incl. maps). Add a `sync.Mutex` around settings access, or confirm
-  Wails serializes all callbacks onto one goroutine and document that.
+- [x] **Guard `b.settings` against data races** (`main.go:55-60`, `booking.go`)
+  Confirmed (from the Wails v3 source) bound calls run one-goroutine-per-request
+  via `net/http`, concurrent with the native window-event loop → the race is
+  real. Added `Booking.mu sync.Mutex` guarding every settings read/mutate/marshal;
+  setters use a lock-free `persist()` to do "mutate + flush" as one critical
+  section. A dedicated `TestSettingsConcurrentAccess` hammers the write-vs-marshal
+  path from 150 goroutines so `go test -race` actually exercises the lock (the
+  functional tests are single-goroutine and wouldn't). `doc` stays unguarded
+  (bound-call only, UI serialised) — documented on the struct.
 
 - [ ] **Remove the dead `SaveSettings(s Settings)` full-replace setter** (`booking.go:263`)
   Frontend deliberately never calls it (see `App.tsx:216`); it can still wipe
@@ -43,9 +48,9 @@ Status legend: `[ ]` todo · `[~]` in progress · `[x]` done
   Result is JSON-marshaled by Wails immediately; the slice copies are dead work
   in the production path.
 
-- [ ] **Unify `pushRecent` / `removeRecent` idioms** (`:357`, `:373`)
-  One allocates fresh, the other filters in place via `RecentFiles[:0]`. Pick the
-  clearer allocating style for a 10-element list.
+- [x] **Unify `pushRecent` / `removeRecent` idioms** (`:357`, `:373`)
+  Both now allocate a fresh slice (the in-place `RecentFiles[:0]` filter is gone);
+  done incidentally while adding the settings mutex.
 
 - [ ] **Document `writeCSV`'s template-format coupling** (`booking.go:872`)
   Add a comment: the leading record number attaches to the first col-def line
