@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"log"
 	"os"
 	"path/filepath"
 )
@@ -47,6 +48,7 @@ func newSettingsStore() *settingsStore {
 	cfgDir, err := os.UserConfigDir()
 	if err != nil {
 		cfgDir = os.TempDir()
+		log.Printf("settings: user config dir unavailable (%v); falling back to %s — settings will not survive a reboot", err, cfgDir)
 	}
 	return &settingsStore{path: filepath.Join(cfgDir, "kutyaguru", "settings.json")}
 }

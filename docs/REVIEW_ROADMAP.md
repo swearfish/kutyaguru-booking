@@ -90,8 +90,9 @@ Status legend: `[ ]` todo · `[~]` in progress · `[x]` done
 
 ## Priority 4 — minor / nits
 
-- [ ] Log a warning when `init()` falls back to `os.TempDir()` so the
-  non-persisting-settings degradation is visible (`booking.go:153-156`).
+- [x] Log a warning when the settings store falls back to `os.TempDir()` so the
+  non-persisting-settings degradation is visible (`settings.go`,
+  `newSettingsStore`). Uses the standard `log` package, as `main.go` does.
 - [ ] `GetSettings()` ships the whole `Settings` struct though the frontend reads
   a subset (`App.tsx:69-79`) — consider a narrower DTO.
 - [ ] Include `rowEnabled` in `emptyTable` (`App.tsx:40`) to drop some defensive
