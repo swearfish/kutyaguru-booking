@@ -37,7 +37,7 @@ import StatusBar from './components/StatusBar'
 import NavSidebar from './components/NavSidebar'
 import SheetTabs from './components/SheetTabs'
 
-const emptyTable: main.TableDataResult = new main.TableDataResult({ columns: [], rows: [], cellErrors: [] })
+const emptyTable: main.TableDataResult = new main.TableDataResult({ columns: [], rows: [], rowEnabled: [], cellErrors: [] })
 
 const COL_SERVICE = 'Tétel megnevezés'
 const COL_PRICE = 'Nettó egységár'
@@ -99,7 +99,7 @@ export default function App() {
     for (const ce of (tableData.cellErrors ?? [])) {
       // Disabled rows aren't exported, so their issues don't count toward the
       // status bar (and no longer block CSV export — keep the two consistent).
-      if ((tableData.rowEnabled ?? [])[ce.rowIndex] === false) continue
+      if (tableData.rowEnabled[ce.rowIndex] === false) continue
       if (ce.severity === 'error') errorCount++
       else if (ce.severity === 'warning') warningCount++
     }

@@ -95,8 +95,13 @@ Status legend: `[ ]` todo · `[~]` in progress · `[x]` done
   `newSettingsStore`). Uses the standard `log` package, as `main.go` does.
 - [ ] `GetSettings()` ships the whole `Settings` struct though the frontend reads
   a subset (`App.tsx:69-79`) — consider a narrower DTO.
-- [ ] Include `rowEnabled` in `emptyTable` (`App.tsx:40`) to drop some defensive
-  `rowEnabled?.[i] ?? true` chains.
+- [x] Include `rowEnabled` in `emptyTable` (`App.tsx`) to drop some defensive
+  `rowEnabled?.[i] ?? true` chains. The generated `TableDataResult` already types
+  `rowEnabled` as non-optional `boolean[]` and its constructor defaults it to `[]`,
+  so `emptyTable` already had it — made it explicit for self-documentation. Dropped
+  the now-redundant **null**-guards (`?.`, `?? []`) at the four use sites; kept the
+  meaningful **index**-level defaults (`?? true` / `=== false`) which guard
+  out-of-bounds access, a separate concern.
 - [ ] Document the Makefile Windows cross-build path in the README (currently only
   the `wails3` path is documented).
 - [ ] Prune sibling clutter from the workspace: `booking.go.v2-backup/`,

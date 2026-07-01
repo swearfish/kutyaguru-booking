@@ -62,7 +62,7 @@ export default function DataTab({ tableData, onCellChange, onAddToMapping, onTog
     const total = (tableData.rows ?? []).length
     let onCount = 0
     for (let i = 0; i < total; i++) {
-      if (tableData.rowEnabled?.[i] ?? true) onCount++
+      if (tableData.rowEnabled[i] ?? true) onCount++
     }
     const allOn = total > 0 && onCount === total
     const someOn = onCount > 0 && onCount < total
@@ -88,7 +88,7 @@ export default function DataTab({ tableData, onCellChange, onAddToMapping, onTog
       ),
       renderCell: (props: RenderCellProps<GridRow>) => {
         const idx = props.row.__rowIndex
-        const checked = tableData.rowEnabled?.[idx] ?? true
+        const checked = tableData.rowEnabled[idx] ?? true
         return (
           <input
             type="checkbox"
@@ -241,7 +241,7 @@ export default function DataTab({ tableData, onCellChange, onAddToMapping, onTog
       columns={columns}
       rows={displayRows}
       rowKeyGetter={(row: GridRow) => row.__rowIndex}
-      rowClass={(row: GridRow) => (tableData.rowEnabled?.[row.__rowIndex] === false ? 'disabledRow' : undefined)}
+      rowClass={(row: GridRow) => (tableData.rowEnabled[row.__rowIndex] === false ? 'disabledRow' : undefined)}
       sortColumns={sortColumns}
       onSortColumnsChange={cols => setSortColumns(cols.slice(-1))}
       onRowsChange={handleRowsChange}
