@@ -48,18 +48,25 @@ Status legend: `[ ]` todo · `[~]` in progress · `[x]` done
   `headerIndex`/`importIndex` maps in `excel.go` stay — they index a *foreign*
   source/import schema, not our output columns.
 
-- [ ] **Drop the unnecessary deep-copies in `buildResult`** (`booking.go:720-738`)
-  Result is JSON-marshaled by Wails immediately; the slice copies are dead work
-  in the production path.
+- [x] **Drop the unnecessary deep-copies in `buildResult`** — _reconsidered, kept._
+  On inspection the roadmap premise doesn't hold: the copies aren't dead work.
+  They (a) normalize nil→`[]` so the empty-table JSON marshals to `[]` not `null`
+  (the frontend indexes without guards), and (b) decouple the returned DTO from
+  later in-place mutation (`updateCell` writes `d.rows[r][c]` directly). Removing
+  them would mean aliasing internal mutable state out through the DTO to save a
+  tens-of-rows copy on a desktop tool — a latent footgun for zero benefit.
+  Recorded the rationale in `buildResult`'s doc comment so it isn't "optimized"
+  away later.
 
 - [x] **Unify `pushRecent` / `removeRecent` idioms** (`:357`, `:373`)
   Both now allocate a fresh slice (the in-place `RecentFiles[:0]` filter is gone);
   done incidentally while adding the settings mutex.
 
-- [ ] **Document `writeCSV`'s template-format coupling** (`booking.go:872`)
-  Add a comment: the leading record number attaches to the first col-def line
-  only; later lines start with the template's empty first cell, and
-  `ColDefLines[0]` is assumed to be the partner line.
+- [x] **Document `writeCSV`'s template-format coupling** (`document.go`)
+  Expanded the `writeCSV` doc comment: the record number is written once before
+  the first col-def line and fills that line's empty leading cell, so
+  `ColDefLines[0]` is assumed to be the partner line; later col-def lines carry
+  no number and begin with the template's own empty first cell.
 
 ## Priority 3 — frontend
 

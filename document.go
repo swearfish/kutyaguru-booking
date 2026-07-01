@@ -101,7 +101,12 @@ func (d *document) updateCell(rowIndex int, colName, value string) {
 	}
 }
 
-// buildResult returns a deep, non-nil copy of the table for the frontend.
+// buildResult returns an independent, non-nil snapshot of the table for the
+// frontend. The copies are deliberate, not dead work: they decouple the returned
+// DTO from later in-place mutation (updateCell writes d.rows[r][c] directly), and
+// they normalize nil slices to empty so the JSON marshals to [] rather than null
+// (the empty-table path leaves rows/cellErrors nil). Tables are tens of rows, so
+// the copy cost is irrelevant — do not "optimize" this into aliasing internal state.
 func (d *document) buildResult() TableDataResult {
 	cols := make([]string, len(d.columnNames))
 	copy(cols, d.columnNames)
@@ -236,9 +241,14 @@ func (d *document) blockingExportError() error {
 }
 
 // writeCSV renders the Számlázz.hu CSV from the template and enabled rows,
-// applying the char mapping to every cell. The leading record number prefixes
-// only the first col-def line of each record; subsequent col-def lines start
-// with the template's empty first cell.
+// applying the char mapping to every cell.
+//
+// Template coupling: each record spans one line per entry in tmpl.ColDefLines.
+// The record's sequence number is written once, immediately before the first
+// col-def line — it occupies that line's empty leading cell (num + the first
+// cell's trailing ";" yields "N;…"), so ColDefLines[0] is assumed to be the
+// partner line whose first column maps to no data cell. Subsequent col-def lines
+// carry no number and begin with the template's own empty first cell.
 func (d *document) writeCSV(w io.Writer, tmpl templateData, charMapping map[string]string) error {
 	bw := bufio.NewWriter(w)
 	defer bw.Flush()
