@@ -110,8 +110,16 @@ Status legend: `[ ]` todo · `[~]` in progress · `[x]` done
   "Cross-building the Windows `.exe` from macOS" subsection covering
   `make windows-setup` / `windows` / `windows ARCH=arm64` and the
   Windows-host-only `windows-package` (NSIS) caveat.
-- [ ] Prune sibling clutter from the workspace: `booking.go.v2-backup/`,
-  `booking.py/`, `.idea/` (outside this module, but noise).
+- [~] Prune sibling clutter from the workspace: `booking.go.v2-backup/`,
+  `booking.py/`, `.idea/` (outside this module). **Surfaced, not auto-pruned:**
+  inspection found irrecoverable work, so these need an explicit owner decision,
+  not a blind delete:
+  - `.idea/` (28K, no git) — JetBrains IDE config; low risk but user's editor setup.
+  - `booking.go.v2-backup/` (1.7M, own git, **no remote**) — 7 commits that exist
+    nowhere else; deleting is permanent loss.
+  - `booking.py/` (516M, own git, remote `swearfish/booked4us-2-szamlazz`) — the
+    original Python port source, with **16 uncommitted files + 2 unpushed commits**.
+  Recommendation: leave in place, or the user backs up / pushes each repo first.
 
 ---
 
