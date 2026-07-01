@@ -10,4 +10,9 @@ export default defineConfig({
     strictPort: true,
   },
   plugins: [react(), wails("./bindings")],
+  // This is a Wails desktop app: assets are served from local disk, so bundle
+  // size has no runtime cost. Raise the limit to silence the cosmetic warning.
+  build: {
+    chunkSizeWarningLimit: 2000,
+  },
 });
