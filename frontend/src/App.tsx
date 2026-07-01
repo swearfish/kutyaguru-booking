@@ -41,6 +41,23 @@ import SheetTabs from './components/SheetTabs'
 
 const emptyTable: main.TableDataResult = new main.TableDataResult({ columns: [], rows: [], rowEnabled: [], cellErrors: [] })
 
+// Render a preview cell's text, wrapping every export-blocking character (∈ blockingSet)
+// in an inverse-video span. Iterates by code point ([...cell]) so multi-byte chars count
+// as one. Returns whether the cell contains any blocker so the caller can frame it.
+function highlightCell(cell: string, blockingSet: Set<string>): { node: React.ReactNode; hasProblem: boolean } {
+  if (blockingSet.size === 0 || cell === '') return { node: cell, hasProblem: false }
+  const chars = [...cell]
+  if (!chars.some(c => blockingSet.has(c))) return { node: cell, hasProblem: false }
+  return {
+    hasProblem: true,
+    node: chars.map((c, i) =>
+      blockingSet.has(c)
+        ? <span key={i} style={{ background: 'var(--mantine-color-red-6)', color: 'white' }}>{c}</span>
+        : <span key={i}>{c}</span>
+    ),
+  }
+}
+
 type View = 'table' | 'fields' | 'mapping' | 'prices' | 'manual'
 type ColorScheme = 'light' | 'dark' | 'auto'
 // How a field-default change propagates to already-loaded rows.
@@ -183,6 +200,13 @@ export default function App() {
       .map(ce => ce.invalidChar)
       .filter(Boolean)
   )], [tableData.cellErrors, tableData.rowEnabled])
+
+  // Char-set form, used to highlight export problems in the CSV preview. This is sound
+  // because encodability is a property of the character alone and the char mapping is
+  // keyed globally per-character: a char is either always encodable/mapped or always a
+  // blocker, document-wide. So membership testing each preview character is complete.
+  // (If mapping ever became per-column, this would need per-cell coordinates instead.)
+  const blockingCharSet = useMemo(() => new Set(blockingChars), [blockingChars])
 
   const loadFirstSheet = useCallback(async (sheets: string[]) => {
     setSheetNames(sheets)
@@ -582,19 +606,40 @@ export default function App() {
               <Table.Thead>
                 {previewRows.slice(0, 3).map((row, ri) => (
                   <Table.Tr key={ri}>
+                    <Table.Th w={28} />
                     {row.map((cell, ci) => <Table.Th key={ci}>{cell}</Table.Th>)}
                   </Table.Tr>
                 ))}
               </Table.Thead>
               <Table.Tbody>
-                {previewRows.slice(3).map((row, ri) => (
-                  <Table.Tr
-                    key={ri}
-                    style={ri % 2 === 0 ? { borderTop: '2px solid var(--mantine-color-default-border)' } : undefined}
-                  >
-                    {row.map((cell, ci) => <Table.Td key={ci}>{cell}</Table.Td>)}
-                  </Table.Tr>
-                ))}
+                {previewRows.slice(3).map((row, ri) => {
+                  const rendered = row.map(cell => highlightCell(cell, blockingCharSet))
+                  const rowHasProblem = rendered.some(r => r.hasProblem)
+                  return (
+                    <Table.Tr
+                      key={ri}
+                      style={{
+                        ...(ri % 2 === 0 ? { borderTop: '2px solid var(--mantine-color-default-border)' } : {}),
+                        ...(rowHasProblem ? { backgroundColor: 'var(--mantine-color-red-light)' } : {}),
+                      }}
+                    >
+                      <Table.Td
+                        style={{ textAlign: 'center', color: 'var(--mantine-color-red-7)', fontWeight: 700 }}
+                        title={rowHasProblem ? 'Ez a sor exportálási hibát tartalmaz' : undefined}
+                      >
+                        {rowHasProblem ? '❗' : ''}
+                      </Table.Td>
+                      {rendered.map((r, ci) => (
+                        <Table.Td
+                          key={ci}
+                          style={r.hasProblem ? { outline: '2px solid var(--mantine-color-red-6)', outlineOffset: -2 } : undefined}
+                        >
+                          {r.node}
+                        </Table.Td>
+                      ))}
+                    </Table.Tr>
+                  )
+                })}
               </Table.Tbody>
             </Table>
           )}
