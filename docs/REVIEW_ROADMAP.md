@@ -41,10 +41,12 @@ Status legend: `[ ]` todo · `[~]` in progress · `[x]` done
   (`App.tsx:42-43`), and `fields.yaml`. Make YAML/bindings authoritative; stop
   re-typing the literals in the frontend.
 
-- [ ] **De-duplicate column-name → index lookups**
-  Build one `map[string]int` when `columnNames` is set; reuse it across
-  `getCellByColName` (`:740`), `colIndex` (`:750`), `LoadSheet` (`:407`),
-  `ReapplyFields` (`:464`), `UpdateCell` (`:485`), `readExcelFrom` (`:640`).
+- [x] **De-duplicate column-name → index lookups**
+  `document` now caches a `colIdx map[string]int`, rebuilt by the single
+  `setColumns` writer (so it can't go stale). `colIndex`/`getCellByColName` are
+  O(1) map lookups, and `ReapplyFields` dropped its own local index map. The
+  `headerIndex`/`importIndex` maps in `excel.go` stay — they index a *foreign*
+  source/import schema, not our output columns.
 
 - [ ] **Drop the unnecessary deep-copies in `buildResult`** (`booking.go:720-738`)
   Result is JSON-marshaled by Wails immediately; the slice copies are dead work

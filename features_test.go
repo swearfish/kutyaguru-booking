@@ -104,7 +104,7 @@ func TestUnpricedServiceWarning(t *testing.T) {
 
 func TestSeverityClassification(t *testing.T) {
 	b := newTestBooking(t)
-	b.doc.columnNames = []string{"Megjegyzés"} // a column not subject to content rules
+	b.doc.setColumns([]string{"Megjegyzés"}) // a column not subject to content rules
 	b.settings.ServicePrices = map[string]string{}
 
 	// Unmappable char (no mapping) → error (blocks export).

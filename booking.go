@@ -140,10 +140,11 @@ func (b *Booking) init() error {
 	}
 	b.fields = fields
 	b.restoreFieldValues()
-	b.doc.columnNames = make([]string, len(fields))
+	names := make([]string, len(fields))
 	for i, f := range fields {
-		b.doc.columnNames[i] = f.Name
+		names[i] = f.Name
 	}
+	b.doc.setColumns(names)
 
 	tmpl, err := loadTemplate(templateCSVBytes)
 	if err != nil {
@@ -404,16 +405,12 @@ func (b *Booking) UpdateFieldValue(fieldName, value string) error {
 
 // ReapplyFields re-applies current editable/const/date field values to all non-MAPPING rows.
 func (b *Booking) ReapplyFields() TableDataResult {
-	colIndex := make(map[string]int, len(b.doc.columnNames))
-	for i, name := range b.doc.columnNames {
-		colIndex[name] = i
-	}
 	for ri := range b.doc.rows {
 		for _, field := range b.fields {
 			if field.Type == FieldTypeMapping {
 				continue
 			}
-			if idx, ok := colIndex[field.Name]; ok {
+			if idx := b.doc.colIndex(field.Name); idx >= 0 {
 				b.doc.rows[ri][idx] = field.Value
 			}
 		}

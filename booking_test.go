@@ -72,10 +72,11 @@ func newTestBooking(t *testing.T) *Booking {
 		t.Fatal(err)
 	}
 	b.fields = fields
-	b.doc.columnNames = make([]string, len(fields))
+	names := make([]string, len(fields))
 	for i, f := range fields {
-		b.doc.columnNames[i] = f.Name
+		names[i] = f.Name
 	}
+	b.doc.setColumns(names)
 
 	tmpl, err := loadTemplate(templateCSVBytes)
 	if err != nil {

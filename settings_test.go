@@ -16,7 +16,7 @@ func TestSettingsConcurrentAccess(t *testing.T) {
 	const goroutines = 50
 	var wg sync.WaitGroup
 	wg.Add(goroutines * 3)
-	for i := 0; i < goroutines; i++ {
+	for i := range goroutines {
 		scheme := "light"
 		if i%2 == 0 {
 			scheme = "dark"

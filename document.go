@@ -15,26 +15,36 @@ import (
 // preferences are stored.
 type document struct {
 	columnNames []string
+	colIdx      map[string]int // name → index into columnNames; rebuilt by setColumns
 	rows        [][]string
 	rowEnabled  []bool // parallel to rows; true = included in CSV export. In-memory only.
 	cellErrors  []CellError
 }
 
+// setColumns replaces the output column schema and rebuilds the name→index
+// lookup. It is the only writer of columnNames, so colIdx can never go stale.
+// Duplicate names keep their first index, matching the old linear-scan lookups.
+func (d *document) setColumns(names []string) {
+	d.columnNames = names
+	d.colIdx = make(map[string]int, len(names))
+	for i, name := range names {
+		if _, exists := d.colIdx[name]; !exists {
+			d.colIdx[name] = i
+		}
+	}
+}
+
 // colIndex returns the column index for the given output column name, or -1.
 func (d *document) colIndex(colName string) int {
-	for i, name := range d.columnNames {
-		if name == colName {
-			return i
-		}
+	if i, ok := d.colIdx[colName]; ok {
+		return i
 	}
 	return -1
 }
 
 func (d *document) getCellByColName(row []string, colName string) string {
-	for i, name := range d.columnNames {
-		if name == colName && i < len(row) {
-			return row[i]
-		}
+	if i, ok := d.colIdx[colName]; ok && i < len(row) {
+		return row[i]
 	}
 	return ""
 }

@@ -105,7 +105,7 @@ func TestExcelRoundTripPreservesToggles(t *testing.T) {
 // row no longer blocks CSV export (and that an enabled one still does).
 func TestDisabledRowDoesNotBlockExport(t *testing.T) {
 	b := newTestBooking(t)
-	b.doc.columnNames = []string{"Megjegyzés"}
+	b.doc.setColumns([]string{"Megjegyzés"})
 	b.settings.Encoding = "ISO-8859-2"
 	b.settings.CharMapping = map[string]string{}
 	b.doc.rows = [][]string{{"árvíztűrő ▲"}} // ▲ is not in ISO-8859-2
