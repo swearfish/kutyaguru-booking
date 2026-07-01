@@ -82,9 +82,11 @@ Status legend: `[ ]` todo · `[~]` in progress · `[x]` done
   rebuilds would need ref-indirection for the error maps + a stable schema key,
   which isn't worth it for a tens-of-rows grid where perf is a non-concern.
 
-- [ ] **Fix the mount `useEffect` deps** (`App.tsx:68-80`)
-  Add `mantineSetColorScheme` (stable, so harmless) or an explicit
-  eslint-disable comment to document intent.
+- [x] **Fix the mount `useEffect` deps** (`App.tsx`)
+  Added `mantineSetColorScheme` to the dep array (a stable ref from
+  `useMantineColorScheme`, so the effect still runs exactly once) and a comment
+  documenting the mount-once intent. Preferred over an eslint-disable: the rule
+  can't prove Mantine's setter is stable, so listing it is the honest fix.
 
 ## Priority 4 — minor / nits
 

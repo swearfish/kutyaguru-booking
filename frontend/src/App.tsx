@@ -64,7 +64,10 @@ export default function App() {
   const [filterText, setFilterText] = useState<string>('')
   const [previewOpened, previewHandlers] = useDisclosure(false)
 
-  // Load persisted settings on mount.
+  // Hydrate state from persisted settings once on mount. mantineSetColorScheme is
+  // listed for exhaustive-deps honesty; it's a stable ref from useMantineColorScheme,
+  // so the effect still runs exactly once (the state setters are stable by React
+  // contract and need no listing).
   useEffect(() => {
     GetSettings().then(s => {
       const scheme = (s.colorScheme as ColorScheme) || 'auto'
@@ -77,7 +80,7 @@ export default function App() {
       setServicePrices((s.servicePrices ?? {}) as Record<string, string>)
       setRecentFiles(s.recentFiles || [])
     })
-  }, [])
+  }, [mantineSetColorScheme])
 
   // Distinct service values found in the current sheet, plus the price default.
   const services = useMemo(() => {
