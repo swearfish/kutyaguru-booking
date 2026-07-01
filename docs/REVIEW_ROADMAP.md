@@ -70,10 +70,17 @@ Status legend: `[ ]` todo · `[~]` in progress · `[x]` done
 
 ## Priority 3 — frontend
 
-- [ ] **Stop rebuilding all column defs on every cell edit** (`DataTab.tsx:53-163`)
-  The `columns` memo depends on `tableData.rows` only for the header checkbox
-  tri-state. Split that into its own memo so data-column defs depend only on
-  `columns` + error maps.
+- [x] **Split the conflated `columns` memo** (`DataTab.tsx`)
+  Split the single `columns` memo into `enabledColumn` (row-toggle checkbox,
+  driven by row on/off state) and `dataColumns` (schema + validation maps),
+  combined by a cheap third memo. Each now has honest, minimal deps; the split
+  also fixed a latent missing dep (`onAddToMapping`, previously covered only
+  transitively via `charMapping`). Note: this is a clarity/correctness refactor,
+  **not** a rebuild-count win — the backend returns freshly-allocated arrays on
+  every mutation, so `tableData.columns`/`rowEnabled`/`cellErrors` change
+  reference each edit and both memos still recompute regardless. Truly cutting
+  rebuilds would need ref-indirection for the error maps + a stable schema key,
+  which isn't worth it for a tens-of-rows grid where perf is a non-concern.
 
 - [ ] **Fix the mount `useEffect` deps** (`App.tsx:68-80`)
   Add `mantineSetColorScheme` (stable, so harmless) or an explicit

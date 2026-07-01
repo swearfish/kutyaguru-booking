@@ -50,7 +50,15 @@ export default function DataTab({ tableData, onCellChange, onAddToMapping, onTog
     return { errorMap, mappedMap, warnMap }
   }, [tableData.cellErrors])
 
-  const columns = useMemo<Column<GridRow>[]>(() => {
+  // The grid's columns split into two concerns with different triggers, kept as
+  // separate memos so each rebuilds only for its own inputs (and so the deps are
+  // honest). NOTE: the backend hands back freshly-allocated arrays on every
+  // mutation, so in practice both still recompute on each edit — the split is for
+  // clarity and correct dependencies, not a rebuild-count optimization.
+
+  // enabledColumn: the frozen row-toggle checkbox. Driven by row on/off state —
+  // the header tri-state (all/some/none) and each row's own flag.
+  const enabledColumn = useMemo<Column<GridRow>>(() => {
     const total = (tableData.rows ?? []).length
     let onCount = 0
     for (let i = 0; i < total; i++) {
@@ -58,7 +66,7 @@ export default function DataTab({ tableData, onCellChange, onAddToMapping, onTog
     }
     const allOn = total > 0 && onCount === total
     const someOn = onCount > 0 && onCount < total
-    const enabledColumn: Column<GridRow> = {
+    return {
       key: '__enabled',
       name: '',
       width: 40,
@@ -92,7 +100,12 @@ export default function DataTab({ tableData, onCellChange, onAddToMapping, onTog
         )
       },
     }
-    const dataCols = tableData.columns.map(colName => ({
+  }, [tableData.rows, tableData.rowEnabled, onToggleRow, onToggleAll])
+
+  // dataColumns: one editable column per output field. Driven by the schema and
+  // the validation maps (cell tinting + tooltips) — not by row on/off state.
+  const dataColumns = useMemo<Column<GridRow>[]>(() => {
+    return tableData.columns.map(colName => ({
       key: colName,
       name: colName,
       editable: true,
@@ -159,8 +172,12 @@ export default function DataTab({ tableData, onCellChange, onAddToMapping, onTog
         return <>{cellValue}</>
       },
     }))
-    return [enabledColumn, ...dataCols]
-  }, [tableData.columns, tableData.rows, tableData.rowEnabled, errorMap, mappedMap, warnMap, charMapping, onToggleRow, onToggleAll])
+  }, [tableData.columns, errorMap, mappedMap, warnMap, charMapping, onAddToMapping])
+
+  const columns = useMemo<Column<GridRow>[]>(
+    () => [enabledColumn, ...dataColumns],
+    [enabledColumn, dataColumns],
+  )
 
   const rows = useMemo<GridRow[]>(() => {
     return (tableData.rows ?? []).map((row, rowIndex) => {
