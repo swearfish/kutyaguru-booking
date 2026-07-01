@@ -21,9 +21,9 @@ func TestSettingsConcurrentAccess(t *testing.T) {
 		if i%2 == 0 {
 			scheme = "dark"
 		}
-		go func() { defer wg.Done(); b.SetColorScheme(scheme) }()              // locked mutate + persist
-		go func() { defer wg.Done(); _ = b.SaveSettings(defaultSettings()) }() // locked whole-struct replace + marshal
-		go func() { defer wg.Done(); _ = b.GetSettings() }()                   // locked read + marshal
+		go func() { defer wg.Done(); b.SetColorScheme(scheme) }() // locked mutate + persist (marshal to disk)
+		go func() { defer wg.Done(); _ = b.GetSettings() }()      // locked whole-struct read
+		go func() { defer wg.Done(); _ = b.GetServicePrices() }() // locked map read
 	}
 	wg.Wait()
 }

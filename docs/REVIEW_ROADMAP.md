@@ -28,9 +28,11 @@ Status legend: `[ ]` todo · `[~]` in progress · `[x]` done
   functional tests are single-goroutine and wouldn't). `doc` stays unguarded
   (bound-call only, UI serialised) — documented on the struct.
 
-- [ ] **Remove the dead `SaveSettings(s Settings)` full-replace setter** (`booking.go:263`)
-  Frontend deliberately never calls it (see `App.tsx:216`); it can still wipe
-  server-managed fields if reintroduced. Delete the bound method.
+- [x] **Remove the dead `SaveSettings(s Settings)` full-replace setter**
+  Frontend never called it (only generated bindings referenced it). Deleted the
+  bound method and regenerated the Wails bindings (`wails3 generate bindings`,
+  now 23 methods) — a 7-line drop in `frontend/bindings/kutyaguru/booking.ts`,
+  no other bindings touched.
 
 ## Priority 2 — high-value maintainability cleanup
 

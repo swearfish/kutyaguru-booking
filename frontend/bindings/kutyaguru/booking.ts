@@ -150,13 +150,6 @@ export function SaveCSV(): $CancellablePromise<boolean> {
 }
 
 /**
- * SaveSettings persists the given settings to disk (called when user changes theme/encoding).
- */
-export function SaveSettings(s: $models.Settings): $CancellablePromise<void> {
-    return $Call.ByID(2753051117, s);
-}
-
-/**
  * SetAllRowsEnabled toggles every row on or off (select-all / select-none).
  */
 export function SetAllRowsEnabled(enabled: boolean): $CancellablePromise<$models.TableDataResult> {

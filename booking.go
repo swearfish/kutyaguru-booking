@@ -216,15 +216,6 @@ func (b *Booking) GetSettings() Settings {
 	return b.settings
 }
 
-// SaveSettings persists the given settings to disk (called when user changes theme/encoding).
-func (b *Booking) SaveSettings(s Settings) error {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	b.settings = s
-	b.persist()
-	return nil
-}
-
 // SetColorScheme persists the UI color scheme ("light" | "dark" | "auto").
 func (b *Booking) SetColorScheme(scheme string) {
 	b.mu.Lock()
