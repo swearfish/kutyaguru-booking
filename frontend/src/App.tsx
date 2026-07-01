@@ -22,6 +22,7 @@ const {
   PreviewCSV,
   GetStatus,
   GetSettings,
+  GetColumnRoles,
   GetRecentFiles,
   SetColorScheme,
   SetEncoding,
@@ -38,9 +39,6 @@ import NavSidebar from './components/NavSidebar'
 import SheetTabs from './components/SheetTabs'
 
 const emptyTable: main.TableDataResult = new main.TableDataResult({ columns: [], rows: [], rowEnabled: [], cellErrors: [] })
-
-const COL_SERVICE = 'Tétel megnevezés'
-const COL_PRICE = 'Nettó egységár'
 
 type View = 'table' | 'fields' | 'mapping' | 'prices'
 type ColorScheme = 'light' | 'dark' | 'auto'
@@ -59,6 +57,7 @@ export default function App() {
   const [charMapping, setCharMapping] = useState<Record<string, string>>({})
   const [servicePrices, setServicePrices] = useState<Record<string, string>>({})
   const [recentFiles, setRecentFiles] = useState<string[]>([])
+  const [columnRoles, setColumnRoles] = useState<main.ColumnRoles | null>(null)
   const [previewText, setPreviewText] = useState<string>('')
   const [previewMode, setPreviewMode] = useState<'table' | 'raw'>('table')
   const [filterText, setFilterText] = useState<string>('')
@@ -82,15 +81,22 @@ export default function App() {
     })
   }, [mantineSetColorScheme])
 
+  // The service/price column names come from the backend (which owns the schema)
+  // rather than being re-typed here. They are constant for the app's lifetime.
+  useEffect(() => {
+    GetColumnRoles().then(setColumnRoles)
+  }, [])
+
   // Distinct service values found in the current sheet, plus the price default.
   const services = useMemo(() => {
-    const idx = tableData.columns.indexOf(COL_SERVICE)
+    if (!columnRoles) return []
+    const idx = tableData.columns.indexOf(columnRoles.service)
     if (idx < 0) return []
     return [...new Set(tableData.rows.map(r => r[idx]).filter(v => v && v.trim() !== ''))]
-  }, [tableData])
+  }, [tableData, columnRoles])
   const defaultPrice = useMemo(
-    () => fields.find(f => f.name === COL_PRICE)?.value ?? '',
-    [fields],
+    () => (columnRoles ? fields.find(f => f.name === columnRoles.price)?.value ?? '' : ''),
+    [fields, columnRoles],
   )
 
   // Error / warning counts for the status bar.

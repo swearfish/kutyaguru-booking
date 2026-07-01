@@ -222,6 +222,21 @@ type UISettings struct {
 	RecentFiles   []string          `json:"recentFiles"`
 }
 
+// ColumnRoles names the output columns the frontend must identify by role — the
+// service/item column and the net-unit-price column. The backend owns the schema,
+// so the UI reads these instead of re-typing the Hungarian literals (which would
+// be a third place the names live, alongside these consts and fields.yaml).
+type ColumnRoles struct {
+	Service string `json:"service"`
+	Price   string `json:"price"`
+}
+
+// GetColumnRoles returns the role→name mapping the frontend needs to locate the
+// service and price columns without hardcoding their names (called on mount).
+func (b *Booking) GetColumnRoles() ColumnRoles {
+	return ColumnRoles{Service: colService, Price: colPrice}
+}
+
 // GetSettings returns the UI-relevant subset of user settings (called on
 // frontend mount).
 func (b *Booking) GetSettings() UISettings {

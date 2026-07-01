@@ -8,6 +8,7 @@ export {
 
 export {
     CellError,
+    ColumnRoles,
     Field,
     FieldType,
     TableDataResult,

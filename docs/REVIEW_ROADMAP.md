@@ -36,10 +36,19 @@ Status legend: `[ ]` todo · `[~]` in progress · `[x]` done
 
 ## Priority 2 — high-value maintainability cleanup
 
-- [ ] **Collapse the triple source of truth for column names**
-  Same Hungarian names live in Go consts (`booking.go:40-47`), TS literals
-  (`App.tsx:42-43`), and `fields.yaml`. Make YAML/bindings authoritative; stop
-  re-typing the literals in the frontend.
+- [x] **Collapse the triple source of truth for column names**
+  Same Hungarian names lived in Go consts (`booking.go`), TS literals
+  (`App.tsx`), and `fields.yaml`. Two fixes:
+  - **Go↔YAML drift guard:** `TestColumnConstsExistInSchema` (`columns_test.go`)
+    asserts every `col*` const resolves in the `fields.yaml`-derived schema, so a
+    rename on either side fails loudly instead of silently no-op'ing the rule.
+    fields.yaml is now the source the consts must track.
+  - **Frontend de-duplication:** added a `ColumnRoles` bound DTO + `GetColumnRoles`;
+    `App.tsx` fetches the service/price names on mount instead of re-typing the
+    `COL_SERVICE`/`COL_PRICE` literals (now deleted). The backend owns the schema.
+  Note: the Go `col*` consts stay in Go (they drive typed validation switches);
+  exporting them as a Wails enum would force `string(...)` conversions throughout
+  the validation code, so the bound DTO is the cleaner boundary.
 
 - [x] **De-duplicate column-name → index lookups**
   `document` now caches a `colIdx map[string]int`, rebuilt by the single

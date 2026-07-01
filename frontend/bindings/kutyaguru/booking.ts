@@ -34,11 +34,21 @@ export function GetCharMapping(): $CancellablePromise<{ [_ in string]?: string }
 }
 
 /**
+ * GetColumnRoles returns the role→name mapping the frontend needs to locate the
+ * service and price columns without hardcoding their names (called on mount).
+ */
+export function GetColumnRoles(): $CancellablePromise<$models.ColumnRoles> {
+    return $Call.ByID(2740252054).then(($result: any) => {
+        return $$createType1($result);
+    });
+}
+
+/**
  * GetFields returns the current field definitions for the Mezők tab.
  */
 export function GetFields(): $CancellablePromise<$models.Field[]> {
     return $Call.ByID(2340982902).then(($result: any) => {
-        return $$createType2($result);
+        return $$createType3($result);
     });
 }
 
@@ -47,7 +57,7 @@ export function GetFields(): $CancellablePromise<$models.Field[]> {
  */
 export function GetRecentFiles(): $CancellablePromise<string[]> {
     return $Call.ByID(674861675).then(($result: any) => {
-        return $$createType3($result);
+        return $$createType4($result);
     });
 }
 
@@ -66,7 +76,7 @@ export function GetServicePrices(): $CancellablePromise<{ [_ in string]?: string
  */
 export function GetSettings(): $CancellablePromise<$models.UISettings> {
     return $Call.ByID(2598443442).then(($result: any) => {
-        return $$createType4($result);
+        return $$createType5($result);
     });
 }
 
@@ -82,7 +92,7 @@ export function GetStatus(): $CancellablePromise<string> {
  */
 export function GetTableData(): $CancellablePromise<$models.TableDataResult> {
     return $Call.ByID(1643564193).then(($result: any) => {
-        return $$createType5($result);
+        return $$createType6($result);
     });
 }
 
@@ -91,7 +101,7 @@ export function GetTableData(): $CancellablePromise<$models.TableDataResult> {
  */
 export function ImportFromExcel(): $CancellablePromise<$models.TableDataResult> {
     return $Call.ByID(757548863).then(($result: any) => {
-        return $$createType5($result);
+        return $$createType6($result);
     });
 }
 
@@ -101,7 +111,7 @@ export function ImportFromExcel(): $CancellablePromise<$models.TableDataResult> 
  */
 export function LoadRecentFile(path: string): $CancellablePromise<string[]> {
     return $Call.ByID(1000020668, path).then(($result: any) => {
-        return $$createType3($result);
+        return $$createType4($result);
     });
 }
 
@@ -110,7 +120,7 @@ export function LoadRecentFile(path: string): $CancellablePromise<string[]> {
  */
 export function LoadSheet(sheetName: string): $CancellablePromise<$models.TableDataResult> {
     return $Call.ByID(2750288452, sheetName).then(($result: any) => {
-        return $$createType5($result);
+        return $$createType6($result);
     });
 }
 
@@ -119,7 +129,7 @@ export function LoadSheet(sheetName: string): $CancellablePromise<$models.TableD
  */
 export function OpenBookedFile(): $CancellablePromise<string[]> {
     return $Call.ByID(2313661635).then(($result: any) => {
-        return $$createType3($result);
+        return $$createType4($result);
     });
 }
 
@@ -137,7 +147,7 @@ export function PreviewCSV(): $CancellablePromise<string> {
  */
 export function ReapplyFields(): $CancellablePromise<$models.TableDataResult> {
     return $Call.ByID(2317909817).then(($result: any) => {
-        return $$createType5($result);
+        return $$createType6($result);
     });
 }
 
@@ -155,7 +165,7 @@ export function SaveCSV(): $CancellablePromise<boolean> {
  */
 export function SetAllRowsEnabled(enabled: boolean): $CancellablePromise<$models.TableDataResult> {
     return $Call.ByID(4222319800, enabled).then(($result: any) => {
-        return $$createType5($result);
+        return $$createType6($result);
     });
 }
 
@@ -164,7 +174,7 @@ export function SetAllRowsEnabled(enabled: boolean): $CancellablePromise<$models
  */
 export function SetCharMapping(m: { [_ in string]?: string }): $CancellablePromise<$models.TableDataResult> {
     return $Call.ByID(3012984231, m).then(($result: any) => {
-        return $$createType5($result);
+        return $$createType6($result);
     });
 }
 
@@ -181,7 +191,7 @@ export function SetColorScheme(scheme: string): $CancellablePromise<void> {
  */
 export function SetEncoding(enc: string): $CancellablePromise<$models.TableDataResult> {
     return $Call.ByID(3543820506, enc).then(($result: any) => {
-        return $$createType5($result);
+        return $$createType6($result);
     });
 }
 
@@ -190,7 +200,7 @@ export function SetEncoding(enc: string): $CancellablePromise<$models.TableDataR
  */
 export function SetRowEnabled(rowIndex: number, enabled: boolean): $CancellablePromise<$models.TableDataResult> {
     return $Call.ByID(3711206202, rowIndex, enabled).then(($result: any) => {
-        return $$createType5($result);
+        return $$createType6($result);
     });
 }
 
@@ -200,7 +210,7 @@ export function SetRowEnabled(rowIndex: number, enabled: boolean): $CancellableP
  */
 export function SetServicePrices(m: { [_ in string]?: string }): $CancellablePromise<$models.TableDataResult> {
     return $Call.ByID(3348534596, m).then(($result: any) => {
-        return $$createType5($result);
+        return $$createType6($result);
     });
 }
 
@@ -209,7 +219,7 @@ export function SetServicePrices(m: { [_ in string]?: string }): $CancellablePro
  */
 export function UpdateCell(rowIndex: number, colName: string, value: string): $CancellablePromise<$models.TableDataResult> {
     return $Call.ByID(2945283456, rowIndex, colName, value).then(($result: any) => {
-        return $$createType5($result);
+        return $$createType6($result);
     });
 }
 
@@ -222,8 +232,9 @@ export function UpdateFieldValue(fieldName: string, value: string): $Cancellable
 
 // Private type creation functions
 const $$createType0 = $Create.Map($Create.Any, $Create.Any);
-const $$createType1 = $models.Field.createFrom;
-const $$createType2 = $Create.Array($$createType1);
-const $$createType3 = $Create.Array($Create.Any);
-const $$createType4 = $models.UISettings.createFrom;
-const $$createType5 = $models.TableDataResult.createFrom;
+const $$createType1 = $models.ColumnRoles.createFrom;
+const $$createType2 = $models.Field.createFrom;
+const $$createType3 = $Create.Array($$createType2);
+const $$createType4 = $Create.Array($Create.Any);
+const $$createType5 = $models.UISettings.createFrom;
+const $$createType6 = $models.TableDataResult.createFrom;

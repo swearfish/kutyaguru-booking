@@ -78,6 +78,37 @@ export class CellError {
 }
 
 /**
+ * ColumnRoles names the output columns the frontend must identify by role — the
+ * service/item column and the net-unit-price column. The backend owns the schema,
+ * so the UI reads these instead of re-typing the Hungarian literals (which would
+ * be a third place the names live, alongside these consts and fields.yaml).
+ */
+export class ColumnRoles {
+    "service": string;
+    "price": string;
+
+    /** Creates a new ColumnRoles instance. */
+    constructor($$source: Partial<ColumnRoles> = {}) {
+        if (!("service" in $$source)) {
+            this["service"] = "";
+        }
+        if (!("price" in $$source)) {
+            this["price"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ColumnRoles instance from a string or object.
+     */
+    static createFrom($$source: any = {}): ColumnRoles {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new ColumnRoles($$parsedSource as Partial<ColumnRoles>);
+    }
+}
+
+/**
  * Field is serialised to JSON and sent to the frontend for the Mezők tab.
  */
 export class Field {
