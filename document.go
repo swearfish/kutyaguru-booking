@@ -149,6 +149,39 @@ func (d *document) applyServicePrices(prices map[string]string) {
 	}
 }
 
+// applyServicePricesMatch is the "match" counterpart to applyServicePrices: it pushes
+// a changed service price onto loaded rows ONLY where the row's price cell still equals
+// that service's previous effective price — i.e. rows untouched since the last price,
+// leaving hand-edited rows alone. The previous effective price is the old map value, or
+// flatDefault (the flat "Nettó egységár" default) when the service was previously unpriced.
+// oldPrices/newPrices are the price maps before/after the change; a service is acted on
+// only where newPrices differs from its previous effective price. (Stateless proxy: a row
+// hand-edited back to the old price is treated as untouched, mirroring the field workflow.)
+func (d *document) applyServicePricesMatch(oldPrices, newPrices map[string]string, flatDefault string) {
+	svcIdx := d.colIndex(colService)
+	priceIdx := d.colIndex(colPrice)
+	if svcIdx < 0 || priceIdx < 0 {
+		return
+	}
+	for ri := range d.rows {
+		if svcIdx >= len(d.rows[ri]) || priceIdx >= len(d.rows[ri]) {
+			continue
+		}
+		svc := d.rows[ri][svcIdx]
+		newPrice, priced := newPrices[svc]
+		if !priced {
+			continue // service has no configured price now
+		}
+		prevEffective := flatDefault
+		if p, had := oldPrices[svc]; had {
+			prevEffective = p
+		}
+		if newPrice != prevEffective && d.rows[ri][priceIdx] == prevEffective {
+			d.rows[ri][priceIdx] = newPrice
+		}
+	}
+}
+
 // severityRank orders the three severities so the most important issue wins
 // when several apply to the same cell (error > warning > mapped).
 func severityRank(s string) int {

@@ -1,17 +1,28 @@
-import { ActionIcon, Popover, SegmentedControl, Stack, Text, Tooltip } from '@mantine/core'
+import { ActionIcon, Popover, SegmentedControl, Select, Stack, Text, Tooltip } from '@mantine/core'
 
 type View = 'table' | 'fields' | 'mapping' | 'prices' | 'manual'
+
+// How a changed field default / service price propagates to already-loaded rows.
+// Shared by the Fields and Prices workflows.
+const applyModeData = [
+  { value: 'never', label: 'Soha' },
+  { value: 'match', label: 'Csak az egyezőkre' },
+  { value: 'ask', label: 'Rákérdez' },
+  { value: 'always', label: 'Mindig' },
+]
 
 interface Props {
   view: View
   onViewChange: (v: View) => void
   colorScheme: string
   encoding: string
+  applyMode: string
   onColorSchemeChange: (s: string) => void
   onEncodingChange: (e: string) => void
+  onApplyModeChange: (mode: string) => void
 }
 
-export default function NavSidebar({ view, onViewChange, colorScheme, encoding, onColorSchemeChange, onEncodingChange }: Props) {
+export default function NavSidebar({ view, onViewChange, colorScheme, encoding, applyMode, onColorSchemeChange, onEncodingChange, onApplyModeChange }: Props) {
   return (
     <div style={{
       display: 'flex',
@@ -108,6 +119,16 @@ export default function NavSidebar({ view, onViewChange, colorScheme, encoding, 
                 data={['ISO-8859-2', 'UTF-8']}
                 value={encoding}
                 onChange={onEncodingChange}
+              />
+              <Text size="xs" fw={600} mt={4}>Változtatás a betöltött sorokra</Text>
+              <Select
+                size="xs"
+                data={applyModeData}
+                value={applyMode}
+                onChange={(v) => v && onApplyModeChange(v)}
+                allowDeselect={false}
+                comboboxProps={{ withinPortal: false }}
+                description="Mezők és árak alapértékének módosításakor"
               />
             </Stack>
           </Popover.Dropdown>

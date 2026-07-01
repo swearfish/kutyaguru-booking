@@ -13,6 +13,7 @@ type Settings struct {
 	Encoding    string            `json:"encoding"`    // "ISO-8859-2" | "UTF-8"
 	CharMapping map[string]string `json:"charMapping"` // unicode char → latin-2 replacement
 	FieldValues map[string]string `json:"fieldValues"` // persisted TEXT editable field values
+	ApplyMode   string            `json:"applyMode"`   // how field-default changes hit loaded rows: "never" | "match" | "ask" | "always"
 
 	ServicePrices map[string]string `json:"servicePrices"` // service name → net unit price
 	RecentFiles   []string          `json:"recentFiles"`   // most-recent-first, capped
@@ -28,6 +29,7 @@ func defaultSettings() Settings {
 		Encoding:      "ISO-8859-2",
 		CharMapping:   map[string]string{},
 		FieldValues:   map[string]string{},
+		ApplyMode:     "ask",
 		ServicePrices: map[string]string{},
 		WindowW:       1280,
 		WindowH:       800,
@@ -76,6 +78,9 @@ func (s *settingsStore) load() Settings {
 	}
 	if st.FieldValues == nil {
 		st.FieldValues = map[string]string{}
+	}
+	if st.ApplyMode == "" {
+		st.ApplyMode = "ask"
 	}
 	if st.ServicePrices == nil {
 		st.ServicePrices = map[string]string{}

@@ -27,3 +27,16 @@
 .rdg-row.disabledRow .rdg-cell[aria-colindex="1"] {
   opacity: 1;
 }
+
+/* Highlight row: a brief flash after jumping to a row from the problem list. */
+.rdg-row.highlightRow .rdg-cell {
+  animation: rowFlash 2s ease-out;
+}
+@keyframes rowFlash {
+  0%, 40% {
+    background-color: rgba(59, 130, 246, 0.45);
+  }
+  100% {
+    background-color: transparent;
+  }
+}

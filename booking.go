@@ -218,6 +218,7 @@ type UISettings struct {
 	ColorScheme   string            `json:"colorScheme"`
 	Encoding      string            `json:"encoding"`
 	CharMapping   map[string]string `json:"charMapping"`
+	ApplyMode     string            `json:"applyMode"`
 	ServicePrices map[string]string `json:"servicePrices"`
 	RecentFiles   []string          `json:"recentFiles"`
 }
@@ -229,12 +230,14 @@ type UISettings struct {
 type ColumnRoles struct {
 	Service string `json:"service"`
 	Price   string `json:"price"`
+	Partner string `json:"partner"`
 }
 
 // GetColumnRoles returns the role→name mapping the frontend needs to locate the
-// service and price columns without hardcoding their names (called on mount).
+// service, price and partner columns without hardcoding their names (called on
+// mount). Partner lets the UI name the customer behind a problem row.
 func (b *Booking) GetColumnRoles() ColumnRoles {
-	return ColumnRoles{Service: colService, Price: colPrice}
+	return ColumnRoles{Service: colService, Price: colPrice, Partner: colPartner}
 }
 
 // GetSettings returns the UI-relevant subset of user settings (called on
@@ -246,6 +249,7 @@ func (b *Booking) GetSettings() UISettings {
 		ColorScheme:   b.settings.ColorScheme,
 		Encoding:      b.settings.Encoding,
 		CharMapping:   b.settings.CharMapping,
+		ApplyMode:     b.settings.ApplyMode,
 		ServicePrices: b.settings.ServicePrices,
 		RecentFiles:   b.settings.RecentFiles,
 	}
@@ -256,6 +260,16 @@ func (b *Booking) SetColorScheme(scheme string) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.settings.ColorScheme = scheme
+	b.persist()
+}
+
+// SetApplyMode persists how a field-default change propagates to already-loaded
+// rows: "never" (leave rows), "match" (only rows still on the old default),
+// "ask" (prompt each time), or "always" (rewrite every row).
+func (b *Booking) SetApplyMode(mode string) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.settings.ApplyMode = mode
 	b.persist()
 }
 
@@ -298,16 +312,39 @@ func (b *Booking) GetServicePrices() map[string]string {
 	return b.settings.ServicePrices
 }
 
-// SetServicePrices replaces the price lookup, re-applies it to all rows,
-// re-validates, and saves settings.
-func (b *Booking) SetServicePrices(m map[string]string) TableDataResult {
+// SetServicePrices replaces the price lookup (always persisted) and pushes the change
+// onto already-loaded rows according to mode — mirroring the field-default workflow:
+//   - "never": leave loaded rows as they are (only the lookup changes)
+//   - "match": rewrite only rows whose price cell still equals the service's previous
+//     effective price (untouched rows), leaving hand-edited rows alone
+//   - "all" (default): rewrite every row whose service has a configured price
+//
+// The "ask" mode is resolved to one of the above by the frontend before calling. Rows
+// are always re-validated so unpriced-service warnings clear as soon as a price exists,
+// even in "never" mode where the cells themselves are untouched.
+func (b *Booking) SetServicePrices(m map[string]string, mode string) TableDataResult {
 	b.mu.Lock()
+	oldPrices := b.settings.ServicePrices
 	b.settings.ServicePrices = m
 	b.persist()
 	s := b.settings
+	flatDefault := ""
+	for i := range b.fields {
+		if b.fields[i].Name == colPrice {
+			flatDefault = b.fields[i].Value
+			break
+		}
+	}
 	b.mu.Unlock()
 
-	b.doc.applyServicePrices(s.ServicePrices)
+	switch mode {
+	case "never":
+		// Lookup persisted; loaded rows keep their current price cells.
+	case "match":
+		b.doc.applyServicePricesMatch(oldPrices, m, flatDefault)
+	default: // "all"
+		b.doc.applyServicePrices(m)
+	}
 	b.doc.cellErrors = b.doc.validate(s)
 	return b.doc.buildResult()
 }
@@ -450,6 +487,44 @@ func (b *Booking) ReapplyFields() TableDataResult {
 		}
 	}
 	b.doc.applyServicePrices(b.settings.ServicePrices)
+	b.doc.cellErrors = b.doc.validate(b.settings)
+	return b.doc.buildResult()
+}
+
+// ApplyFieldToRows overwrites the named field's column across loaded rows and
+// re-validates. mode "all" rewrites every row; mode "match" rewrites only rows whose
+// current cell still equals prevValue — i.e. rows untouched since the old default,
+// leaving manually-edited rows alone (a stateless proxy: a row hand-edited back to the
+// old default is treated as untouched, which is acceptable). Unlike ReapplyFields
+// (which rewrites every non-MAPPING column), this is deliberately narrow: the UI
+// applies one field at a time so a field the user chose to leave is never clobbered.
+// MAPPING fields (read from the source sheet) and unknown names are no-ops.
+func (b *Booking) ApplyFieldToRows(fieldName, mode, prevValue string) TableDataResult {
+	var field *Field
+	for i := range b.fields {
+		if b.fields[i].Name == fieldName {
+			field = &b.fields[i]
+			break
+		}
+	}
+	if field == nil || field.Type == FieldTypeMapping {
+		return b.doc.buildResult()
+	}
+	if idx := b.doc.colIndex(field.Name); idx >= 0 {
+		for ri := range b.doc.rows {
+			if mode == "match" && b.doc.rows[ri][idx] != prevValue {
+				continue
+			}
+			b.doc.rows[ri][idx] = field.Value
+		}
+	}
+	// Re-assert configured service prices ONLY when the applied field is the price or
+	// service column — those are the only fields whose change affects the price mapping.
+	// For any other field this call is a no-op that would needlessly clobber rows a prior
+	// "never"/"match" price choice deliberately left off the configured price.
+	if field.Name == colPrice || field.Name == colService {
+		b.doc.applyServicePrices(b.settings.ServicePrices)
+	}
 	b.doc.cellErrors = b.doc.validate(b.settings)
 	return b.doc.buildResult()
 }

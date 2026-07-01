@@ -4,9 +4,11 @@ interface Props {
   status: string
   errorCount?: number
   warningCount?: number
+  onCounterClick?: () => void
 }
 
-export default function StatusBar({ status, errorCount = 0, warningCount = 0 }: Props) {
+export default function StatusBar({ status, errorCount = 0, warningCount = 0, onCounterClick }: Props) {
+  const badgeStyle = onCounterClick ? { cursor: 'pointer' } : undefined
   return (
     <Box
       bg="gray.1"
@@ -22,10 +24,10 @@ export default function StatusBar({ status, errorCount = 0, warningCount = 0 }: 
     >
       <Group gap={6} wrap="nowrap">
         {errorCount > 0 && (
-          <Badge color="red" variant="filled" size="sm">{errorCount} hiba</Badge>
+          <Badge color="red" variant="filled" size="sm" style={badgeStyle} onClick={onCounterClick}>{errorCount} hiba</Badge>
         )}
         {warningCount > 0 && (
-          <Badge color="orange" variant="light" size="sm">{warningCount} figyelmeztetés</Badge>
+          <Badge color="orange" variant="light" size="sm" style={badgeStyle} onClick={onCounterClick}>{warningCount} figyelmeztetés</Badge>
         )}
       </Group>
       <Text size="xs" c="dimmed" truncate>

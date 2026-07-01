@@ -5,7 +5,9 @@ interface Props {
   servicePrices: Record<string, string>
   services: string[] // distinct service values found in the loaded sheet
   defaultPrice: string // current "Nettó egységár" default for new entries
-  onChange: (m: Record<string, string>) => void
+  // kind lets the parent apply the "apply to loaded rows" workflow to price EDITS only:
+  // 'delete'/'addAll' never push a new price onto existing rows, so they skip the prompt.
+  onChange: (m: Record<string, string>, kind: 'edit' | 'delete' | 'addAll') => void
 }
 
 export default function PricesTab({ servicePrices, services, defaultPrice, onChange }: Props) {
@@ -20,13 +22,13 @@ export default function PricesTab({ servicePrices, services, defaultPrice, onCha
     const val = editValues[svc]
     const updated = { ...servicePrices, [svc]: val }
     setEditValues(prev => { const n = { ...prev }; delete n[svc]; return n })
-    onChange(updated)
+    onChange(updated, 'edit')
   }
 
   function handleDelete(svc: string) {
     const updated = { ...servicePrices }
     delete updated[svc]
-    onChange(updated)
+    onChange(updated, 'delete')
   }
 
   function handleAddAll() {
@@ -34,7 +36,7 @@ export default function PricesTab({ servicePrices, services, defaultPrice, onCha
     if (toAdd.length === 0) return
     const updated = { ...servicePrices }
     for (const s of toAdd) updated[s] = defaultPrice
-    onChange(updated)
+    onChange(updated, 'addAll')
   }
 
   const missingCount = services.filter(s => !(s in servicePrices)).length

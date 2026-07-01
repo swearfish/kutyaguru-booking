@@ -86,6 +86,7 @@ export class CellError {
 export class ColumnRoles {
     "service": string;
     "price": string;
+    "partner": string;
 
     /** Creates a new ColumnRoles instance. */
     constructor($$source: Partial<ColumnRoles> = {}) {
@@ -94,6 +95,9 @@ export class ColumnRoles {
         }
         if (!("price" in $$source)) {
             this["price"] = "";
+        }
+        if (!("partner" in $$source)) {
+            this["partner"] = "";
         }
 
         Object.assign(this, $$source);
@@ -223,6 +227,7 @@ export class UISettings {
     "colorScheme": string;
     "encoding": string;
     "charMapping": { [_ in string]?: string };
+    "applyMode": string;
     "servicePrices": { [_ in string]?: string };
     "recentFiles": string[];
 
@@ -236,6 +241,9 @@ export class UISettings {
         }
         if (!("charMapping" in $$source)) {
             this["charMapping"] = {};
+        }
+        if (!("applyMode" in $$source)) {
+            this["applyMode"] = "";
         }
         if (!("servicePrices" in $$source)) {
             this["servicePrices"] = {};
@@ -252,17 +260,17 @@ export class UISettings {
      */
     static createFrom($$source: any = {}): UISettings {
         const $$createField2_0 = $$createType5;
-        const $$createField3_0 = $$createType5;
-        const $$createField4_0 = $$createType0;
+        const $$createField4_0 = $$createType5;
+        const $$createField5_0 = $$createType0;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("charMapping" in $$parsedSource) {
             $$parsedSource["charMapping"] = $$createField2_0($$parsedSource["charMapping"]);
         }
         if ("servicePrices" in $$parsedSource) {
-            $$parsedSource["servicePrices"] = $$createField3_0($$parsedSource["servicePrices"]);
+            $$parsedSource["servicePrices"] = $$createField4_0($$parsedSource["servicePrices"]);
         }
         if ("recentFiles" in $$parsedSource) {
-            $$parsedSource["recentFiles"] = $$createField4_0($$parsedSource["recentFiles"]);
+            $$parsedSource["recentFiles"] = $$createField5_0($$parsedSource["recentFiles"]);
         }
         return new UISettings($$parsedSource as Partial<UISettings>);
     }

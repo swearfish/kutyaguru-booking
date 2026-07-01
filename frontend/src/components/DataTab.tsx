@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { DataGrid, renderTextEditor } from 'react-data-grid'
-import type { Column, RenderCellProps, RowsChangeData, SortColumn } from 'react-data-grid'
+import type { Column, DataGridHandle, RenderCellProps, RowsChangeData, SortColumn } from 'react-data-grid'
 import { ActionIcon, Tooltip, useComputedColorScheme } from '@mantine/core'
 import * as main from '../../bindings/kutyaguru'
 import './DataTab.css'
@@ -15,6 +15,7 @@ interface Props {
   onToggleAll: (enabled: boolean) => void
   charMapping: Record<string, string>
   filterText: string
+  scrollTarget: { rowIndex: number; nonce: number } | null
 }
 
 function applyMapping(value: string, mapping: Record<string, string>): string {
@@ -29,9 +30,11 @@ function normalize(value: string): string {
   return value.toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '')
 }
 
-export default function DataTab({ tableData, onCellChange, onAddToMapping, onToggleRow, onToggleAll, charMapping, filterText }: Props) {
+export default function DataTab({ tableData, onCellChange, onAddToMapping, onToggleRow, onToggleAll, charMapping, filterText, scrollTarget }: Props) {
   const computedScheme = useComputedColorScheme('light')
   const [sortColumns, setSortColumns] = useState<readonly SortColumn[]>([])
+  const gridRef = useRef<DataGridHandle>(null)
+  const [flashRow, setFlashRow] = useState<number | null>(null)
 
   const { errorMap, mappedMap, warnMap } = useMemo(() => {
     const errorMap = new Map<string, main.CellError>()
@@ -216,6 +219,21 @@ export default function DataTab({ tableData, onCellChange, onAddToMapping, onTog
     return view
   }, [rows, tableData.columns, filterText, sortColumns])
 
+  // Feature 3: scroll to and briefly highlight a row requested from the problem
+  // list. The nonce on scrollTarget makes repeated clicks on the same row re-fire.
+  useEffect(() => {
+    if (!scrollTarget) return
+    const displayIdx = displayRows.findIndex(r => r.__rowIndex === scrollTarget.rowIndex)
+    if (displayIdx < 0) return
+    gridRef.current?.scrollToCell({ rowIdx: displayIdx, idx: 1 }) // idx 1 = first data column
+    setFlashRow(scrollTarget.rowIndex)
+    const t = setTimeout(() => setFlashRow(null), 2000)
+    return () => clearTimeout(t)
+    // displayRows intentionally omitted: the target object identity (nonce) is the
+    // trigger; re-running when the filtered view changes would re-flash spuriously.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scrollTarget])
+
   function handleRowsChange(newRows: GridRow[], data: RowsChangeData<GridRow>) {
     const colName = data.column.key
     if (colName === '__enabled') return
@@ -237,11 +255,17 @@ export default function DataTab({ tableData, onCellChange, onAddToMapping, onTog
 
   return (
     <DataGrid
+      ref={gridRef}
       className={computedScheme === 'dark' ? 'rdg-dark' : 'rdg-light'}
       columns={columns}
       rows={displayRows}
       rowKeyGetter={(row: GridRow) => row.__rowIndex}
-      rowClass={(row: GridRow) => (tableData.rowEnabled[row.__rowIndex] === false ? 'disabledRow' : undefined)}
+      rowClass={(row: GridRow) => {
+        const classes: string[] = []
+        if (tableData.rowEnabled[row.__rowIndex] === false) classes.push('disabledRow')
+        if (row.__rowIndex === flashRow) classes.push('highlightRow')
+        return classes.length > 0 ? classes.join(' ') : undefined
+      }}
       sortColumns={sortColumns}
       onSortColumnsChange={cols => setSortColumns(cols.slice(-1))}
       onRowsChange={handleRowsChange}
