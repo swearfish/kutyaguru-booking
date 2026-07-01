@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
-	"github.com/xuri/excelize/v2"
 	"golang.org/x/text/encoding/charmap"
 	"gopkg.in/yaml.v3"
 )
@@ -253,15 +252,13 @@ func (b *Booking) OpenBookedFile() ([]string, error) {
 	if path == "" {
 		return nil, nil
 	}
-	f, err := excelize.OpenFile(path)
+	names, err := sheetNames(path)
 	if err != nil {
-		return nil, fmt.Errorf("nem sikerült megnyitni: %w", err)
+		return nil, err
 	}
-	defer f.Close()
-
 	b.excelPath = path
 	b.pushRecent(path)
-	return f.GetSheetList(), nil
+	return names, nil
 }
 
 // GetRecentFiles returns the most-recently-opened file paths (newest first).
@@ -272,16 +269,14 @@ func (b *Booking) GetRecentFiles() []string {
 // LoadRecentFile reopens a previously used file without a dialog and returns its
 // sheet names. A missing file is dropped from the recent list and reported.
 func (b *Booking) LoadRecentFile(path string) ([]string, error) {
-	f, err := excelize.OpenFile(path)
+	names, err := sheetNames(path)
 	if err != nil {
 		b.removeRecent(path)
 		return nil, fmt.Errorf("a fájl nem nyitható meg: %w", err)
 	}
-	defer f.Close()
-
 	b.excelPath = path
 	b.pushRecent(path)
-	return f.GetSheetList(), nil
+	return names, nil
 }
 
 // pushRecent moves path to the front of the recent list (deduped, capped).
@@ -317,45 +312,16 @@ func (b *Booking) LoadSheet(sheetName string) (TableDataResult, error) {
 	if b.excelPath == "" {
 		return TableDataResult{}, fmt.Errorf("nincs megnyitott Excel fájl")
 	}
-	f, err := excelize.OpenFile(b.excelPath, excelize.Options{RawCellValue: false})
+	rows, err := readBookedSheet(b.excelPath, sheetName, b.fields)
 	if err != nil {
-		return TableDataResult{}, fmt.Errorf("nem sikerült megnyitni: %w", err)
+		return TableDataResult{}, err
 	}
-	defer f.Close()
-
-	allRows, err := f.GetRows(sheetName)
-	if err != nil {
-		return TableDataResult{}, fmt.Errorf("munkalap olvasási hiba: %w", err)
-	}
-	if len(allRows) == 0 {
-		b.doc.rows = nil
-		b.doc.rowEnabled = nil
+	b.doc.rows = rows
+	b.doc.rowEnabled = newEnabledSlice(len(b.doc.rows))
+	if len(b.doc.rows) == 0 {
 		b.doc.cellErrors = nil
 		return b.doc.buildResult(), nil
 	}
-
-	headerRow := allRows[0]
-	headerIndex := make(map[string]int, len(headerRow))
-	for i, h := range headerRow {
-		headerIndex[h] = i
-	}
-
-	b.doc.rows = make([][]string, 0, len(allRows)-1)
-	for _, dataRow := range allRows[1:] {
-		row := make([]string, len(b.fields))
-		for i, field := range b.fields {
-			switch field.Type {
-			case FieldTypeMapping:
-				if idx, ok := headerIndex[field.Mapping]; ok && idx < len(dataRow) {
-					row[i] = dataRow[idx]
-				}
-			default:
-				row[i] = field.Value
-			}
-		}
-		b.doc.rows = append(b.doc.rows, row)
-	}
-	b.doc.rowEnabled = newEnabledSlice(len(b.doc.rows))
 
 	b.doc.applyServicePrices(b.settings.ServicePrices)
 	b.doc.cellErrors = b.doc.validate(b.settings)
@@ -456,37 +422,10 @@ func (b *Booking) ExportToExcel() (bool, error) {
 	return true, nil
 }
 
-// writeExcelTo writes all rows plus the trailing on/off flag column to an xlsx
-// file. All rows are written (Excel is a working-data save); the flag column
-// records each row's state so a re-import restores the toggles.
+// writeExcelTo writes the current table (rows plus the trailing on/off flag
+// column) to an xlsx file. See writeExcelFile for the format details.
 func (b *Booking) writeExcelTo(path string) error {
-	f := excelize.NewFile()
-	defer f.Close()
-	sheet := "Sheet1"
-
-	// Header row: the data columns, then the trailing on/off flag column.
-	for ci, name := range b.doc.columnNames {
-		cell, _ := excelize.CoordinatesToCellName(ci+1, 1)
-		f.SetCellValue(sheet, cell, name)
-	}
-	flagCol := len(b.doc.columnNames) + 1
-	if cell, err := excelize.CoordinatesToCellName(flagCol, 1); err == nil {
-		f.SetCellValue(sheet, cell, colEnabledHeader)
-	}
-	for ri, row := range b.doc.rows {
-		for ci, val := range row {
-			cell, _ := excelize.CoordinatesToCellName(ci+1, ri+2)
-			f.SetCellValue(sheet, cell, val)
-		}
-		flag := "0"
-		if b.doc.rowIsEnabled(ri) {
-			flag = "1"
-		}
-		if cell, err := excelize.CoordinatesToCellName(flagCol, ri+2); err == nil {
-			f.SetCellValue(sheet, cell, flag)
-		}
-	}
-	return f.SaveAs(path)
+	return writeExcelFile(path, b.doc.columnNames, b.doc.rows, b.doc.rowEnabled)
 }
 
 // ImportFromExcel loads rows from a previously exported xlsx file.
@@ -505,50 +444,15 @@ func (b *Booking) ImportFromExcel() (TableDataResult, error) {
 	return b.doc.buildResult(), nil
 }
 
-// readExcelFrom replaces b.doc.rows / b.doc.rowEnabled / b.doc.cellErrors from an xlsx file.
-// The flag column (colEnabledHeader) is matched by name and is not a data column,
-// so it never leaks into b.doc.columnNames / b.doc.rows. Files without it load as all-on.
+// readExcelFrom replaces the current table from an xlsx file, then re-validates.
+// See readExcelFile for how columns and the flag column are matched.
 func (b *Booking) readExcelFrom(path string) error {
-	f, err := excelize.OpenFile(path, excelize.Options{RawCellValue: false})
+	rows, rowEnabled, err := readExcelFile(path, b.doc.columnNames)
 	if err != nil {
-		return fmt.Errorf("nem sikerült megnyitni: %w", err)
+		return err
 	}
-	defer f.Close()
-
-	sheets := f.GetSheetList()
-	if len(sheets) == 0 {
-		return fmt.Errorf("üres munkafüzet")
-	}
-	allRows, err := f.GetRows(sheets[0])
-	if err != nil || len(allRows) == 0 {
-		return fmt.Errorf("munkalap olvasási hiba: %w", err)
-	}
-
-	importCols := allRows[0]
-	importIndex := make(map[string]int, len(importCols))
-	for i, c := range importCols {
-		importIndex[c] = i
-	}
-	enabledIdx, hasEnabled := importIndex[colEnabledHeader]
-
-	b.doc.rows = make([][]string, 0, len(allRows)-1)
-	b.doc.rowEnabled = make([]bool, 0, len(allRows)-1)
-	for _, dataRow := range allRows[1:] {
-		row := make([]string, len(b.doc.columnNames))
-		for ci, name := range b.doc.columnNames {
-			if idx, ok := importIndex[name]; ok && idx < len(dataRow) {
-				row[ci] = dataRow[idx]
-			}
-		}
-		b.doc.rows = append(b.doc.rows, row)
-		// A row is enabled unless the flag column explicitly says "0". Files
-		// without the flag column (plain Booked4us exports) load as all-on.
-		enabled := true
-		if hasEnabled && enabledIdx < len(dataRow) {
-			enabled = strings.TrimSpace(dataRow[enabledIdx]) != "0"
-		}
-		b.doc.rowEnabled = append(b.doc.rowEnabled, enabled)
-	}
+	b.doc.rows = rows
+	b.doc.rowEnabled = rowEnabled
 	b.doc.cellErrors = b.doc.validate(b.settings)
 	return nil
 }
