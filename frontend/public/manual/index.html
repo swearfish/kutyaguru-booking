@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Kutyaguru — Felhasználói kézikönyv</title>
+<style>
+  :root {
+    --ink: #1a1d21;
+    --ink-soft: #495057;
+    --muted: #868e96;
+    --line: #e3e6ea;
+    --bg: #f6f7f9;
+    --card: #ffffff;
+    --accent: #1971c2;
+    --accent-soft: #e7f0f9;
+    --err-bg: #ffece9; --err-bd: #ff6b6b; --err-tx: #c92a2a;
+    --map-bg: #fff9db; --map-bd: #f0c000; --map-tx: #a67c00;
+    --warn-bg: #fff2e2; --warn-bd: #ffa94d; --warn-tx: #d9480f;
+    --radius: 10px;
+    --maxw: 1180px;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    color: var(--ink);
+    background: var(--bg);
+    line-height: 1.65;
+    font-size: 16px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ---- header ---- */
+  .masthead {
+    background: linear-gradient(135deg, #1864ab 0%, #1971c2 55%, #1c7ed6 100%);
+    color: #fff;
+    padding: 44px 24px 40px;
+  }
+  .masthead .inner { max-width: var(--maxw); margin: 0 auto; }
+  .masthead .eyebrow {
+    text-transform: uppercase; letter-spacing: .14em; font-size: 12.5px;
+    font-weight: 600; color: #fff; opacity: .85; margin: 0 0 8px;
+  }
+  .masthead h1 { margin: 0 0 10px; font-size: 34px; letter-spacing: -.02em; font-weight: 700; }
+  /* Override the global `p { color: var(--ink-soft) }` — a directly-matched rule
+     beats the inherited white from .masthead, so set white explicitly here. */
+  .masthead p { margin: 0; max-width: 60ch; font-size: 16.5px; color: #fff; }
+
+  /* ---- layout ---- */
+  .shell {
+    max-width: var(--maxw); margin: 0 auto; padding: 32px 24px 80px;
+    display: grid; grid-template-columns: 240px 1fr; gap: 44px; align-items: start;
+  }
+  nav.toc {
+    position: sticky; top: 20px; align-self: start;
+    font-size: 14.5px; border: 1px solid var(--line);
+    background: var(--card); border-radius: var(--radius); padding: 18px 18px 20px;
+  }
+  nav.toc strong { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); margin-bottom: 10px; }
+  nav.toc ol { list-style: none; margin: 0; padding: 0; counter-reset: toc; }
+  nav.toc li { margin: 2px 0; }
+  nav.toc a { display: block; color: var(--ink-soft); text-decoration: none; padding: 5px 8px; border-radius: 6px; }
+  nav.toc a:hover { background: var(--accent-soft); color: var(--accent); }
+
+  main { min-width: 0; }
+  section { margin-bottom: 48px; scroll-margin-top: 16px; }
+  section > h2 {
+    font-size: 24px; letter-spacing: -.01em; margin: 0 0 6px; padding-bottom: 10px;
+    border-bottom: 2px solid var(--line);
+  }
+  h3 { font-size: 18.5px; margin: 28px 0 8px; }
+  p { margin: 12px 0; color: var(--ink-soft); }
+  main p, main li { color: var(--ink-soft); }
+  strong { color: var(--ink); }
+  ul, ol { padding-left: 22px; }
+  li { margin: 6px 0; }
+
+  /* step badges */
+  .step-title { display: flex; align-items: center; gap: 12px; }
+  .step-title .num {
+    flex: none; width: 30px; height: 30px; border-radius: 50%;
+    background: var(--accent); color: #fff; font-weight: 700; font-size: 15px;
+    display: grid; place-items: center;
+  }
+  .step-title h2 { border: 0; padding: 0; margin: 0; }
+
+  /* figures */
+  figure { margin: 20px 0; }
+  figure img {
+    width: 100%; height: auto; display: block;
+    border: 1px solid var(--line); border-radius: var(--radius);
+    box-shadow: 0 1px 2px rgba(16,24,40,.04), 0 8px 24px rgba(16,24,40,.06);
+  }
+  figure img.narrow { max-width: 620px; }
+  figcaption { font-size: 13.5px; color: var(--muted); margin-top: 8px; text-align: center; }
+
+  /* inline UI tokens */
+  .ui {
+    display: inline-block; padding: 1px 8px; border-radius: 6px;
+    background: #eef1f4; border: 1px solid #dde1e6; color: var(--ink);
+    font-size: 14px; font-weight: 500; white-space: nowrap;
+  }
+  kbd {
+    font-family: inherit; font-size: 13px; background: #fff; border: 1px solid #ccd0d5;
+    border-bottom-width: 2px; border-radius: 5px; padding: 1px 6px;
+  }
+
+  /* callouts */
+  .note {
+    border: 1px solid var(--line); border-left: 4px solid var(--accent);
+    background: var(--card); border-radius: 8px; padding: 12px 16px; margin: 18px 0;
+  }
+  .note.warn { border-left-color: var(--warn-bd); }
+  .note .lbl { font-weight: 700; color: var(--ink); margin-right: 6px; }
+  .note p { margin: 4px 0; }
+
+  /* traffic-light legend */
+  .legend { display: grid; gap: 12px; margin: 18px 0; }
+  .lc { display: grid; grid-template-columns: 128px 1fr; gap: 16px; align-items: start;
+        border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; background: var(--card); }
+  .swatch { border-radius: 6px; padding: 6px 10px; font-weight: 600; font-size: 13.5px; text-align: center; border: 1.5px solid; }
+  .swatch.err  { background: var(--err-bg);  border-color: var(--err-bd);  color: var(--err-tx); }
+  .swatch.map  { background: var(--map-bg);  border-color: var(--map-bd);  color: var(--map-tx); }
+  .swatch.warn { background: var(--warn-bg); border-color: var(--warn-bd); color: var(--warn-tx); }
+  .lc div p { margin: 0; }
+  .lc div p + p { margin-top: 4px; font-size: 14px; }
+
+  /* two-column encoding table */
+  table.cmp { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 15px; background: var(--card); }
+  table.cmp th, table.cmp td { border: 1px solid var(--line); padding: 10px 14px; text-align: left; vertical-align: top; }
+  table.cmp th { background: #f0f3f6; font-size: 13.5px; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-soft); }
+
+  /* faq */
+  .faq { border: 1px solid var(--line); border-radius: 8px; background: var(--card); padding: 4px 18px; }
+  .faq details { border-bottom: 1px solid var(--line); }
+  .faq details:last-child { border-bottom: 0; }
+  .faq summary { cursor: pointer; font-weight: 600; color: var(--ink); padding: 14px 4px; list-style: none; }
+  .faq summary::-webkit-details-marker { display: none; }
+  .faq summary::before { content: "＋"; color: var(--accent); font-weight: 700; margin-right: 10px; }
+  .faq details[open] summary::before { content: "－"; }
+  .faq details p { margin: 0 4px 16px 26px; }
+
+  footer { border-top: 1px solid var(--line); color: var(--muted); font-size: 13.5px; padding: 22px 24px; text-align: center; }
+
+  @media (max-width: 860px) {
+    .shell { grid-template-columns: 1fr; gap: 24px; padding: 20px 16px 60px; }
+    nav.toc { position: static; }
+    .masthead h1 { font-size: 27px; }
+  }
+  @media print {
+    .masthead { background: none; color: #000; border-bottom: 2px solid #000; }
+    nav.toc { display: none; }
+    .shell { display: block; }
+    figure img { box-shadow: none; }
+    section { page-break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+
+<header class="masthead">
+  <div class="inner">
+    <p class="eyebrow">Felhasználói kézikönyv</p>
+    <h1>Kutyaguru</h1>
+    <p>Ez a program a Booked4us rendszerből exportált Excel-táblát alakítja át
+    Számlázz.hu-kompatibilis CSV-fájllá. Ez a kézikönyv lépésről lépésre végigvezet
+    a teljes folyamaton — a fájl megnyitásától a kész számlázási fájl mentéséig.</p>
+  </div>
+</header>
+
+<div class="shell">
+  <nav class="toc">
+    <strong>Tartalom</strong>
+    <ol>
+      <li><a href="#attekintes">Áttekintés</a></li>
+      <li><a href="#megnyitas">1. Fájl megnyitása</a></li>
+      <li><a href="#adatok">2. Adatok ellenőrzése</a></li>
+      <li><a href="#szinek">Színkódok jelentése</a></li>
+      <li><a href="#javitas">3. Hibák javítása</a></li>
+      <li><a href="#arak">4. Árak beállítása</a></li>
+      <li><a href="#mezok">5. Mezők testreszabása</a></li>
+      <li><a href="#beallitasok">6. Beállítások</a></li>
+      <li><a href="#mentes">7. Előnézet és mentés</a></li>
+      <li><a href="#hibaelharitas">Hibaelhárítás</a></li>
+    </ol>
+  </nav>
+
+  <main>
+
+    <!-- ÁTTEKINTÉS -->
+    <section id="attekintes">
+      <h2>Áttekintés</h2>
+      <p>A program megnyitásakor egy üres munkaterület fogad. Töltsd be a Booked4us
+      Excel-fájlt a <span class="ui">📂 Megnyitás</span> gombbal a bal felső sarokban.</p>
+      <figure>
+        <img src="img/01-welcome.png" alt="A Kutyaguru kezdőképernyője megnyitott fájl nélkül"/>
+        <figcaption>A kezdőképernyő — még nincs betöltött fájl.</figcaption>
+      </figure>
+      <p>Az ablak három fő részből áll:</p>
+      <ul>
+        <li><strong>Felső eszköztár</strong> — fájlműveletek: megnyitás, Excel export/import,
+        előnézet, CSV mentése, valamint a jobb oldali szabadszavas kereső.</li>
+        <li><strong>Bal oldali ikonsáv</strong> — öt nézet között vált:
+        <span class="ui">📊 Adatok</span>, <span class="ui">🗂 Mezők</span>,
+        <span class="ui">🔤 Leképezés</span>, <span class="ui">💰 Árak</span> és a
+        <span class="ui">⚙️ Beállítások</span>.</li>
+        <li><strong>Alsó állapotsor</strong> — a megnyitott fájl neve, valamint a talált
+        hibák és figyelmeztetések száma.</li>
+      </ul>
+      <p>A tipikus munkamenet: <strong>megnyitás → adatok ellenőrzése → hibák javítása →
+      árak és mezők beállítása → előnézet → mentés</strong>. A következő fejezetek ezt a
+      sorrendet követik.</p>
+    </section>
+
+    <!-- 1. MEGNYITÁS -->
+    <section id="megnyitas">
+      <div class="step-title"><span class="num">1</span><h2>Fájl megnyitása</h2></div>
+      <p>Kattints a <span class="ui">📂 Megnyitás</span> gombra, és válaszd ki a
+      Booked4us rendszerből letöltött <strong>.xlsx</strong> fájlt. A program betölti az
+      első munkalapot, és rögtön megjeleníti az adatokat.</p>
+      <p>A már korábban használt fájlokat gyorsan újra megnyithatod: kattints a
+      <span class="ui">Megnyitás</span> gomb melletti kis <span class="ui">▾</span> nyílra,
+      és válassz a <strong>Legutóbbi fájlok</strong> listából. A <span class="ui">Tallózás…</span>
+      ponttal a szokásos fájlválasztó nyílik meg.</p>
+      <figure>
+        <img src="img/09-recent.png" alt="A Legutóbbi fájlok legördülő lista"/>
+        <figcaption>A legutóbb megnyitott fájlok egy kattintással újra betölthetők.</figcaption>
+      </figure>
+      <div class="note">
+        <p><span class="lbl">Tipp</span>Ha egy táblában több munkalap van, a nézet alján
+        megjelenő <strong>munkalap-füleken</strong> válthatsz közöttük.</p>
+      </div>
+    </section>
+
+    <!-- 2. ADATOK -->
+    <section id="adatok">
+      <div class="step-title"><span class="num">2</span><h2>Adatok ellenőrzése</h2></div>
+      <p>Az <span class="ui">📊 Adatok</span> nézet a betöltött táblázatot mutatja már a
+      számlázási oszlopokra leképezve. Minden sor egy foglalás (leendő számlatétel).
+      A program a betöltéskor automatikusan <strong>ellenőrzi</strong> az összes cellát, és
+      színekkel jelzi a problémákat.</p>
+      <figure>
+        <img src="img/02-datatab.png" alt="Az Adatok nézet a betöltött táblázattal, színes hibajelzésekkel"/>
+        <figcaption>Az Adatok nézet. A piros, sárga és narancs cellák jelzik a problémákat;
+        az állapotsor összesíti őket (itt: <strong>1 hiba, 3 figyelmeztetés</strong>).</figcaption>
+      </figure>
+      <p>Amit itt megtehetsz:</p>
+      <ul>
+        <li><strong>Cella szerkesztése</strong> — kattints egy cellába, és írd át az értéket.
+        A módosítás azonnal újraellenőrződik.</li>
+        <li><strong>Sor ki-/bekapcsolása</strong> — a bal szélső jelölőnégyzettel. A kikapcsolt
+        (pipa nélküli) sorok <strong>nem kerülnek</strong> a CSV-be. A fejlécben lévő
+        négyzettel az összeset egyszerre kapcsolhatod.</li>
+        <li><strong>Keresés</strong> — a jobb felső <span class="ui">🔍 Keresés minden oszlopban…</span>
+        mezővel szűrhetsz a táblában.</li>
+      </ul>
+      <p>A cellák színének pontos jelentését a következő fejezet írja le.</p>
+    </section>
+
+    <!-- SZÍNKÓDOK -->
+    <section id="szinek">
+      <h2>Színkódok jelentése</h2>
+      <p>A cellák háromféle színt kaphatnak. A leglényegesebb különbség: a <strong>piros
+      blokkolja a mentést</strong>, a sárga és a narancs viszont <strong>nem</strong>.</p>
+      <div class="legend">
+        <div class="lc">
+          <span class="swatch err">Piros — hiba</span>
+          <div>
+            <p><strong>Nem kódolható karakter.</strong> A cellában olyan karakter van, amely a
+            kiválasztott kódolásban (alapból ISO-8859-2) nem ábrázolható, és nincs is hozzá
+            helyettesítő megadva.</p>
+            <p>Amíg egy <em>bekapcsolt</em> sorban piros cella van, a <span class="ui">💾 CSV mentése</span>
+            nem futtatható le. Lásd a <a href="#javitas">Hibák javítása</a> fejezetet.</p>
+          </div>
+        </div>
+        <div class="lc">
+          <span class="swatch map">Sárga — helyettesítés</span>
+          <div>
+            <p><strong>Exportkor automatikusan lecserélődik.</strong> A karakterhez van
+            megadva helyettesítő a Leképezés táblában (pl. <code>–</code> → <code>-</code>).</p>
+            <p>Ez nem hiba: a mentés simán lefut, a fájlba a helyettesített változat kerül.</p>
+          </div>
+        </div>
+        <div class="lc">
+          <span class="swatch warn">Narancs — figyelmeztetés</span>
+          <div>
+            <p><strong>Tartalmi figyelmeztetés.</strong> Az érték gyanús, de nem blokkol.
+            Például: hiányzó vagy érvénytelen e-mail cím, nem négyjegyű irányítószám,
+            érvénytelen mennyiség, vagy olyan szolgáltatás, amelyhez nincs ár megadva.</p>
+            <p>Érdemes átnézni, de a mentést nem akadályozza.</p>
+          </div>
+        </div>
+      </div>
+      <div class="note">
+        <p><span class="lbl">Fontos</span>Az állapotsor <strong>hiba</strong>- és
+        <strong>figyelmeztetés</strong>-számlálója csak a <em>bekapcsolt</em> sorokat veszi
+        figyelembe. Egy kikapcsolt sor problémái nem számítanak, és nem is akadályozzák a mentést.</p>
+      </div>
+    </section>
+
+    <!-- 3. JAVÍTÁS -->
+    <section id="javitas">
+      <div class="step-title"><span class="num">3</span><h2>Hibák javítása</h2></div>
+      <p>Egy piros (nem kódolható) cellát háromféleképpen szüntethetsz meg:</p>
+      <ol>
+        <li><strong>Javítsd ki a cellát</strong> az Adatok nézetben — írd át a problémás
+        karaktert egy megengedettre.</li>
+        <li><strong>Vegyél fel helyettesítőt</strong> a Leképezés táblába. Ekkor a piros cella
+        sárgává válik, és a karakter exportkor automatikusan lecserélődik.</li>
+        <li><strong>Kapcsold ki a sort</strong> a bal oldali jelölőnégyzettel, ha az a foglalás
+        egyáltalán nem kell a számlázási fájlba.</li>
+      </ol>
+
+      <h3>A Leképezés nézet</h3>
+      <p>A <span class="ui">🔤 Leképezés</span> nézetben adhatod meg, mely különleges
+      karaktereket mire cserélje a program exportkor. A cím a használt kódolásra utal:
+      <strong>Latin-2 helyettesítők</strong>.</p>
+      <figure>
+        <img src="img/04-mapping.png" alt="A Leképezés nézet a karakter-helyettesítő táblával"/>
+        <figcaption>A karaktertérkép. Minden sor egy karakter (Unicode-kóddal) és a hozzá
+        tartozó helyettesítő. A 🗑 gombbal törölhetsz egy szabályt.</figcaption>
+      </figure>
+      <p>A cím melletti <span class="ui">Összes ismeretlen hozzáadása</span> gomb egyetlen
+      kattintással felveszi az összes olyan karaktert, amely jelenleg piros hibát okoz —
+      a zárójelben látod, hányat. Ezután már csak a helyettesítőket kell kitöltened.</p>
+      <div class="note">
+        <p><span class="lbl">Tipp</span>Az Adatok nézetben egy piros cellára állva a
+        <span class="ui">＋</span> gombbal is gyorsan felveheted az adott karaktert a
+        Leképezés táblába.</p>
+      </div>
+    </section>
+
+    <!-- 4. ÁRAK -->
+    <section id="arak">
+      <div class="step-title"><span class="num">4</span><h2>Árak beállítása</h2></div>
+      <p>A <span class="ui">💰 Árak</span> nézetben szolgáltatásonként adhatsz meg
+      <strong>nettó egységárat</strong>. A program minden sorhoz a saját szolgáltatásának
+      megfelelő árat írja be, így nem kell egyesével javítgatnod a táblát.</p>
+      <figure>
+        <img src="img/05-prices.png" alt="Az Árak nézet szolgáltatásonkénti árakkal"/>
+        <figcaption>Szolgáltatásonkénti árazás. Amelyik szolgáltatáshoz nincs ár, ahhoz a
+        Mezők nézetben megadott alapértelmezett egységár kerül — és narancs figyelmeztetést kap.</figcaption>
+      </figure>
+      <p>Az <span class="ui">Összes szolgáltatás hozzáadása</span> gomb egy kattintással
+      felveszi a listába az összes olyan szolgáltatást, amelynek még nincs ára (a zárójelben
+      a darabszám). Az egyes árakat a mezőbe írva módosíthatod, a 🗑 gombbal törölheted.</p>
+    </section>
+
+    <!-- 5. MEZŐK -->
+    <section id="mezok">
+      <div class="step-title"><span class="num">5</span><h2>Mezők testreszabása</h2></div>
+      <p>A <span class="ui">🗂 Mezők</span> nézet mutatja, hogyan épül fel a kimeneti
+      számlázási tábla minden egyes oszlopa. Háromféle mezőtípus van:</p>
+      <figure>
+        <img src="img/03-fields.png" alt="A Mezők nézet a mezőtípusokkal és értékekkel"/>
+        <figcaption>A Mezők nézet. Balra a kimeneti oszlop neve, középen a típusa, jobbra az értéke.</figcaption>
+      </figure>
+      <ul>
+        <li><strong><span style="color:var(--accent)">LEKÉPEZÉS</span></strong> — az érték a
+        forrásfájl egy oszlopából jön (a név alatt a nyíl mutatja, melyikből, pl.
+        <em>← Ügyfél neve</em>). Ezek nem szerkeszthetők itt: közvetlenül a betöltött adatokból származnak.</li>
+        <li><strong><span style="color:#2f9e44">SZÖVEG</span></strong> — minden sorra érvényes
+        rögzített érték, amelyet itt állíthatsz be (pl. <em>Fizetési mód</em>, <em>Áfakulcs</em>,
+        alapértelmezett <em>Nettó egységár</em>). Egyes mezők legördülőből választhatók.</li>
+        <li><strong><span style="color:var(--warn-tx)">DÁTUM</span></strong> — dátumértékek
+        (<em>Kelt</em>, <em>Teljesítés</em>, <em>Fizetési határidő</em>). Ezek indításkor a mai
+        naphoz igazodnak, de felülírhatók.</li>
+      </ul>
+      <p>Egy SZÖVEG vagy DÁTUM mező módosítása azonnal átvezetődik a tábla összes során.</p>
+    </section>
+
+    <!-- 6. BEÁLLÍTÁSOK -->
+    <section id="beallitasok">
+      <div class="step-title"><span class="num">6</span><h2>Beállítások</h2></div>
+      <p>A bal alsó <span class="ui">⚙️</span> gombbal nyílik meg a beállítások panel.
+      Két dolgot állíthatsz itt:</p>
+      <figure>
+        <img src="img/06-settings.png" class="narrow" alt="A Beállítások panel: téma és CSV kódolás"/>
+        <figcaption>Téma és CSV kódolás. Mindkét beállítás megjegyződik a következő indításig.</figcaption>
+      </figure>
+      <ul>
+        <li><strong>Téma</strong> — <span class="ui">Auto</span> (a rendszerhez igazodik),
+        <span class="ui">Világos</span> vagy <span class="ui">Sötét</span> megjelenés.</li>
+        <li><strong>CSV kódolás</strong> — a mentett fájl karakterkódolása.</li>
+      </ul>
+
+      <h3>Melyik kódolást válasszam?</h3>
+      <table class="cmp">
+        <thead><tr><th>ISO-8859-2 (alapértelmezett)</th><th>UTF-8</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>A Számlázz.hu által elvárt közép-európai (Latin-2) kódolás. A magyar ékezetes
+            betűket (á, é, í, ó, ö, ő, ú, ü, ű) helyesen tartalmazza.</td>
+            <td>Univerzális kódolás, amely minden karaktert ismer. Csak akkor válaszd, ha a
+            fogadó rendszer kifejezetten ezt kéri.</td>
+          </tr>
+          <tr>
+            <td>Néhány karakter — pl. egyes külföldi (román, horvát) betűk, vagy Wordből
+            bemásolt „intelligens” idézőjelek és gondolatjelek — <strong>nem fér bele</strong>,
+            ezért piros hibát vagy sárga helyettesítést kapnak.</td>
+            <td>Ilyenkor a karakterhibák eltűnnek, mert az UTF-8 mindent ábrázol — de a fájl
+            csak akkor jó, ha a másik oldal is UTF-8-at vár.</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="note warn">
+        <p><span class="lbl">Példa</span>A <em>Ștefan Ionescu</em> névben szereplő
+        <code>Ș</code> (vesszős, román betű) ISO-8859-2-ben nem kódolható → piros hiba.
+        Megoldás: vegyél fel hozzá helyettesítőt a Leképezésben (pl. <code>Ș → S</code>),
+        javítsd a nevet, vagy — ha a fogadó rendszer engedi — válts UTF-8 kódolásra.</p>
+      </div>
+    </section>
+
+    <!-- 7. MENTÉS -->
+    <section id="mentes">
+      <div class="step-title"><span class="num">7</span><h2>Előnézet és mentés</h2></div>
+      <p>Mentés előtt érdemes megnézni, pontosan hogyan fog kinézni a fájl. Kattints a
+      <span class="ui">👁 Előnézet</span> gombra.</p>
+      <figure>
+        <img src="img/07-preview.png" alt="A CSV előnézet táblázatos nézetben"/>
+        <figcaption>A CSV előnézet. A Számlázz.hu formátuma szerint minden számlához egy
+        partner-sor és egy tétel-sor tartozik; a sorszámozás automatikus.</figcaption>
+      </figure>
+      <p>Az előnézet tetején a <span class="ui">Táblázat</span> és <span class="ui">Nyers szöveg</span>
+      nézet között válthatsz — utóbbi a fájl pontos, karakterhű tartalmát mutatja.</p>
+      <p>Ha minden rendben, mentsd el a fájlokat:</p>
+      <ul>
+        <li><span class="ui">💾 CSV mentése</span> — elkészíti a Számlázz.hu-ba
+        feltölthető CSV-fájlt a beállított kódolással. <strong>Bekapcsolt sorban lévő piros
+        hiba esetén nem fut le</strong> — előbb javítsd a hibát.</li>
+        <li><span class="ui">📤 Excel export</span> — a jelenlegi munkaállapotot menti xlsx-be
+        (a be-/kikapcsolt sorokkal együtt), hogy később folytathasd.</li>
+        <li><span class="ui">📥 Excel import</span> — egy korábban exportált munkafájlt tölt vissza.</li>
+      </ul>
+      <div class="note">
+        <p><span class="lbl">Tipp</span>Az <strong>Excel export/import</strong> a saját
+        munkádhoz való (mentés és folytatás). A Számlázz.hu-ba mindig a
+        <span class="ui">CSV mentése</span> eredményét töltsd fel.</p>
+      </div>
+    </section>
+
+    <!-- HIBAELHÁRÍTÁS -->
+    <section id="hibaelharitas">
+      <h2>Hibaelhárítás</h2>
+      <div class="faq">
+        <details>
+          <summary>Nem tudom elmenteni a CSV-t.</summary>
+          <p>Valamelyik <em>bekapcsolt</em> sorban piros (nem kódolható) cella van. Keresd meg
+          a piros cellát az Adatok nézetben, majd javítsd az értéket, vegyél fel hozzá
+          helyettesítőt a Leképezésben, vagy kapcsold ki az adott sort. Az állapotsor mutatja,
+          hány hiba van még hátra.</p>
+        </details>
+        <details>
+          <summary>Egy sort nem szeretnék számlázni.</summary>
+          <p>Kapcsold ki a sor bal szélső jelölőnégyzetét. A kikapcsolt sorok nem kerülnek a
+          CSV-be, és a hibáik sem akadályozzák a mentést.</p>
+        </details>
+        <details>
+          <summary>Az ékezetes vagy külföldi betűk hibásak / pirosak.</summary>
+          <p>Ez kódolási kérdés. A magyar ékezetek ISO-8859-2-ben rendben vannak; ha külföldi
+          (pl. román) betű vagy Wordből másolt speciális jel okoz gondot, vegyél fel hozzá
+          helyettesítőt a Leképezésben, vagy — ha a fogadó rendszer engedi — válts UTF-8-ra a
+          Beállításokban.</p>
+        </details>
+        <details>
+          <summary>Egy szolgáltatás rossz árral szerepel.</summary>
+          <p>Nyisd meg az Árak nézetet, és állítsd be a szolgáltatás nettó egységárát. A narancs
+          figyelmeztetés azt jelzi, hogy az adott szolgáltatáshoz nincs külön ár megadva, ezért
+          a Mezők nézetben beállított alapértelmezett egységárat kapja.</p>
+        </details>
+        <details>
+          <summary>A beállításaim eltűntek újraindítás után.</summary>
+          <p>A téma, a kódolás, a helyettesítők és az árak normál esetben megjegyződnek. Ha nem
+          maradnak meg, az eszköz nem tudta elérni a beállítások tárolására szolgáló mappát —
+          ilyenkor az adatok csak az adott munkamenetig élnek.</p>
+        </details>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<footer>
+  Kutyaguru — felhasználói kézikönyv. A képernyőképeken szereplő nevek, e-mail címek és
+  címek kitalált, anonimizált mintaadatok.
+</footer>
+
+</body>
+</html>

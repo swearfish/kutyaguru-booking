@@ -40,7 +40,7 @@ import SheetTabs from './components/SheetTabs'
 
 const emptyTable: main.TableDataResult = new main.TableDataResult({ columns: [], rows: [], rowEnabled: [], cellErrors: [] })
 
-type View = 'table' | 'fields' | 'mapping' | 'prices'
+type View = 'table' | 'fields' | 'mapping' | 'prices' | 'manual'
 type ColorScheme = 'light' | 'dark' | 'auto'
 
 export default function App() {
@@ -366,6 +366,19 @@ export default function App() {
               services={services}
               defaultPrice={defaultPrice}
               onChange={handleSetServicePrices}
+            />
+          </div>
+        )}
+        {view === 'manual' && (
+          <div style={{ flex: 1, overflow: 'hidden', minHeight: 0, display: 'flex' }}>
+            {/* Static Hungarian manual bundled under frontend/public/manual/ →
+                embedded into the binary via //go:embed all:frontend/dist.
+                flex:1 (not height:100%) so the iframe fills the flex column —
+                a percentage height won't resolve against a flex-item parent. */}
+            <iframe
+              src="./manual/index.html"
+              title="Kézikönyv"
+              style={{ flex: 1, width: '100%', border: 0 }}
             />
           </div>
         )}

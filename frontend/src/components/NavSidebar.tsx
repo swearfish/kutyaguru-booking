@@ -1,6 +1,6 @@
 import { ActionIcon, Popover, SegmentedControl, Stack, Text, Tooltip } from '@mantine/core'
 
-type View = 'table' | 'fields' | 'mapping' | 'prices'
+type View = 'table' | 'fields' | 'mapping' | 'prices' | 'manual'
 
 interface Props {
   view: View
@@ -66,8 +66,19 @@ export default function NavSidebar({ view, onViewChange, colorScheme, encoding, 
         </ActionIcon>
       </Tooltip>
 
-      {/* Settings gear — bottom */}
-      <div style={{ marginTop: 'auto' }}>
+      {/* Manual + Settings — bottom */}
+      <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+        <Tooltip label="Kézikönyv" position="right" withArrow>
+          <ActionIcon
+            variant={view === 'manual' ? 'filled' : 'subtle'}
+            size="xl"
+            onClick={() => onViewChange('manual')}
+            mb={4}
+          >
+            📖
+          </ActionIcon>
+        </Tooltip>
+
         <Popover position="right-end" withArrow offset={8}>
           <Popover.Target>
             <Tooltip label="Beállítások" position="right" withArrow>
