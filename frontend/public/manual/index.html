@@ -207,11 +207,18 @@
         <span class="ui">🔤 Leképezés</span>, <span class="ui">💰 Árak</span> és a
         <span class="ui">⚙️ Beállítások</span>.</li>
         <li><strong>Alsó állapotsor</strong> — a megnyitott fájl neve, valamint a talált
-        hibák és figyelmeztetések száma.</li>
+        hibák és figyelmeztetések száma. A számlálóra <strong>kattintva</strong> megnyílik
+        a hibás sorok listája (lásd a <a href="#szinek">Színkódok</a> fejezetet).</li>
       </ul>
       <p>A tipikus munkamenet: <strong>megnyitás → adatok ellenőrzése → hibák javítása →
       árak és mezők beállítása → előnézet → mentés</strong>. A következő fejezetek ezt a
       sorrendet követik.</p>
+      <div class="note">
+        <p><span class="lbl">Jó tudni</span>A <span class="ui">🗂 Mezők</span> és a
+        <span class="ui">💰 Árak</span> nézetben az alapértékek (fizetési mód, dátumok,
+        egységárak stb.) <strong>fájl megnyitása előtt is</strong> beállíthatók — a program
+        megjegyzi őket a következő munkamenetig.</p>
+      </div>
     </section>
 
     <!-- 1. MEGNYITÁS -->
@@ -298,6 +305,12 @@
         <strong>figyelmeztetés</strong>-számlálója csak a <em>bekapcsolt</em> sorokat veszi
         figyelembe. Egy kikapcsolt sor problémái nem számítanak, és nem is akadályozzák a mentést.</p>
       </div>
+      <div class="note">
+        <p><span class="lbl">Tipp</span>Az állapotsor számlálójára <strong>kattintva</strong>
+        megnyílik a <strong>Hibás sorok</strong> lista: partnernév szerint felsorolja az
+        érintett sorokat és a problémákat. Bármelyik tételre kattintva a program az
+        <span class="ui">📊 Adatok</span> nézetben odaugrik az adott sorhoz, és röviden kiemeli.</p>
+      </div>
     </section>
 
     <!-- 3. JAVÍTÁS -->
@@ -330,6 +343,14 @@
         <span class="ui">＋</span> gombbal is gyorsan felveheted az adott karaktert a
         Leképezés táblába.</p>
       </div>
+      <div class="note">
+        <p><span class="lbl">Ha a mentés emiatt akad el</span>Amikor a
+        <span class="ui">💾 CSV mentése</span> nem kódolható karakter miatt hiúsul meg, a
+        program felajánlja, hogy a hiányzó karaktereket egyből felveszi a Leképezés táblába
+        (üresen), és átvált a <span class="ui">🔤 Leképezés</span> nézetre — ott már csak a
+        helyettesítőket kell kitöltened. <strong>Az üresen hagyott helyettesítő a karaktert
+        törli</strong> az exportból, ezért érdemes mindet kitölteni.</p>
+      </div>
     </section>
 
     <!-- 4. ÁRAK -->
@@ -346,6 +367,14 @@
       <p>Az <span class="ui">Összes szolgáltatás hozzáadása</span> gomb egy kattintással
       felveszi a listába az összes olyan szolgáltatást, amelynek még nincs ára (a zárójelben
       a darabszám). Az egyes árakat a mezőbe írva módosíthatod, a 🗑 gombbal törölheted.</p>
+      <div class="note">
+        <p><span class="lbl">Már betöltött munkalap</span>Ha <em>menet közben</em>
+        módosítasz egy meglévő árat, a program megkérdezheti, hogy a változást átvezesse-e a
+        már betöltött sorokra is — ezt a <a href="#beallitasok">Beállítások</a>
+        <strong>„Változtatás a betöltött sorokra"</strong> pontja szabályozza. (Új ár
+        felvétele és az <span class="ui">Összes szolgáltatás hozzáadása</span> mindig
+        magától érvényesül, ezekre nem kérdez rá.)</p>
+      </div>
     </section>
 
     <!-- 5. MEZŐK -->
@@ -366,25 +395,52 @@
         alapértelmezett <em>Nettó egységár</em>). Egyes mezők legördülőből választhatók.</li>
         <li><strong><span style="color:var(--warn-tx)">DÁTUM</span></strong> — dátumértékek
         (<em>Kelt</em>, <em>Teljesítés</em>, <em>Fizetési határidő</em>). Ezek indításkor a mai
-        naphoz igazodnak, de felülírhatók.</li>
+        naphoz igazodnak, de felülírhatók. A mező jobb szélén lévő <span class="ui">📅</span>
+        gombbal naptárból is választhatsz dátumot.</li>
       </ul>
-      <p>Egy SZÖVEG vagy DÁTUM mező módosítása azonnal átvezetődik a tábla összes során.</p>
+      <p>Betöltéskor a program minden mezőt automatikusan beír a tábla összes sorába. Ha
+      viszont <strong>már be van töltve egy munkalap</strong>, és utólag módosítasz egy
+      SZÖVEG vagy DÁTUM mezőt, a program megkérdezheti, hogy a változást átvezesse-e a már
+      betöltött sorokra is — ezt a <a href="#beallitasok">Beállítások</a>
+      <strong>„Változtatás a betöltött sorokra"</strong> pontja szabályozza.</p>
     </section>
 
     <!-- 6. BEÁLLÍTÁSOK -->
     <section id="beallitasok">
       <div class="step-title"><span class="num">6</span><h2>Beállítások</h2></div>
       <p>A bal alsó <span class="ui">⚙️</span> gombbal nyílik meg a beállítások panel.
-      Két dolgot állíthatsz itt:</p>
+      Három dolgot állíthatsz itt:</p>
       <figure>
         <img src="img/06-settings.png" class="narrow" alt="A Beállítások panel: téma és CSV kódolás"/>
-        <figcaption>Téma és CSV kódolás. Mindkét beállítás megjegyződik a következő indításig.</figcaption>
+        <figcaption>A beállítások panel. Minden beállítás megjegyződik a következő indításig.</figcaption>
       </figure>
       <ul>
         <li><strong>Téma</strong> — <span class="ui">Auto</span> (a rendszerhez igazodik),
         <span class="ui">Világos</span> vagy <span class="ui">Sötét</span> megjelenés.</li>
         <li><strong>CSV kódolás</strong> — a mentett fájl karakterkódolása.</li>
+        <li><strong>Változtatás a betöltött sorokra</strong> — mi történjen, ha egy mező
+        alapértékét vagy egy szolgáltatás árát <em>már betöltött munkalap mellett</em>
+        módosítod (lásd a következő szakaszt).</li>
       </ul>
+
+      <h3>Változtatás a betöltött sorokra</h3>
+      <p>Ez a közös beállítás egyszerre vonatkozik a <span class="ui">🗂 Mezők</span>
+      alapértékeire és a <span class="ui">💰 Árak</span> szolgáltatás-áraira. Csak akkor
+      számít, ha <strong>már be van töltve egy munkalap</strong>, és utólag módosítasz egy
+      alapértéket — a fájl betöltésekor a program mindig minden sort feltölt. Négy lehetőség
+      közül választhatsz:</p>
+      <ul>
+        <li><strong>Soha</strong> — a módosítás csak az alapértéket frissíti; a már betöltött
+        sorok érintetlenek maradnak.</li>
+        <li><strong>Csak az egyezőkre</strong> — csak azokat a sorokat írja át, amelyek még a
+        régi értéket tartalmazzák; a kézzel módosított sorok érintetlenek maradnak.</li>
+        <li><strong>Rákérdez</strong> (alapértelmezett) — minden ilyen módosításkor felugró
+        ablakban kérdezi meg, mit tegyen.</li>
+        <li><strong>Mindig</strong> — a módosítást azonnal átvezeti a tábla összes során.</li>
+      </ul>
+      <p>A felugró ablakban a <span class="ui">Ne kérdezd újra</span> jelölőnégyzettel a
+      választott műveletet egyből alapértelmezetté teheted — ez ugyanezt a beállítást állítja
+      át, így legközelebb már nem kérdez rá.</p>
 
       <h3>Melyik kódolást válasszam?</h3>
       <table class="cmp">
@@ -469,6 +525,13 @@
           <p>Nyisd meg az Árak nézetet, és állítsd be a szolgáltatás nettó egységárát. A narancs
           figyelmeztetés azt jelzi, hogy az adott szolgáltatáshoz nincs külön ár megadva, ezért
           a Mezők nézetben beállított alapértelmezett egységárat kapja.</p>
+        </details>
+        <details>
+          <summary>Módosítottam egy mezőt vagy árat, de a betöltött sorok nem (vagy épp mind) változtak.</summary>
+          <p>Ezt a <a href="#beallitasok">Beállítások</a> <strong>„Változtatás a betöltött
+          sorokra"</strong> pontja szabályozza: <em>Soha</em>, <em>Csak az egyezőkre</em>,
+          <em>Rákérdez</em> vagy <em>Mindig</em>. Állítsd át, ha más viselkedést szeretnél, vagy
+          válaszd a <em>Rákérdez</em> lehetőséget, hogy minden módosításnál te dönthess.</p>
         </details>
         <details>
           <summary>A beállításaim eltűntek újraindítás után.</summary>
