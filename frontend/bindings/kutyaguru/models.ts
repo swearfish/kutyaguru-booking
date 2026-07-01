@@ -131,105 +131,6 @@ export enum FieldType {
 };
 
 /**
- * Settings holds user preferences persisted across sessions.
- */
-export class Settings {
-    /**
-     * "light" | "dark" | "auto"
-     */
-    "colorScheme": string;
-
-    /**
-     * "ISO-8859-2" | "UTF-8"
-     */
-    "encoding": string;
-
-    /**
-     * unicode char → latin-2 replacement
-     */
-    "charMapping": { [_ in string]?: string };
-
-    /**
-     * persisted TEXT editable field values
-     */
-    "fieldValues": { [_ in string]?: string };
-
-    /**
-     * service name → net unit price
-     */
-    "servicePrices": { [_ in string]?: string };
-
-    /**
-     * most-recent-first, capped
-     */
-    "recentFiles": string[];
-    "windowX": number;
-    "windowY": number;
-    "windowW": number;
-    "windowH": number;
-
-    /** Creates a new Settings instance. */
-    constructor($$source: Partial<Settings> = {}) {
-        if (!("colorScheme" in $$source)) {
-            this["colorScheme"] = "";
-        }
-        if (!("encoding" in $$source)) {
-            this["encoding"] = "";
-        }
-        if (!("charMapping" in $$source)) {
-            this["charMapping"] = {};
-        }
-        if (!("fieldValues" in $$source)) {
-            this["fieldValues"] = {};
-        }
-        if (!("servicePrices" in $$source)) {
-            this["servicePrices"] = {};
-        }
-        if (!("recentFiles" in $$source)) {
-            this["recentFiles"] = [];
-        }
-        if (!("windowX" in $$source)) {
-            this["windowX"] = 0;
-        }
-        if (!("windowY" in $$source)) {
-            this["windowY"] = 0;
-        }
-        if (!("windowW" in $$source)) {
-            this["windowW"] = 0;
-        }
-        if (!("windowH" in $$source)) {
-            this["windowH"] = 0;
-        }
-
-        Object.assign(this, $$source);
-    }
-
-    /**
-     * Creates a new Settings instance from a string or object.
-     */
-    static createFrom($$source: any = {}): Settings {
-        const $$createField2_0 = $$createType1;
-        const $$createField3_0 = $$createType1;
-        const $$createField4_0 = $$createType1;
-        const $$createField5_0 = $$createType0;
-        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
-        if ("charMapping" in $$parsedSource) {
-            $$parsedSource["charMapping"] = $$createField2_0($$parsedSource["charMapping"]);
-        }
-        if ("fieldValues" in $$parsedSource) {
-            $$parsedSource["fieldValues"] = $$createField3_0($$parsedSource["fieldValues"]);
-        }
-        if ("servicePrices" in $$parsedSource) {
-            $$parsedSource["servicePrices"] = $$createField4_0($$parsedSource["servicePrices"]);
-        }
-        if ("recentFiles" in $$parsedSource) {
-            $$parsedSource["recentFiles"] = $$createField5_0($$parsedSource["recentFiles"]);
-        }
-        return new Settings($$parsedSource as Partial<Settings>);
-    }
-}
-
-/**
  * TableDataResult is returned to the frontend whenever the table changes.
  */
 export class TableDataResult {
@@ -261,9 +162,9 @@ export class TableDataResult {
      */
     static createFrom($$source: any = {}): TableDataResult {
         const $$createField0_0 = $$createType0;
-        const $$createField1_0 = $$createType2;
-        const $$createField2_0 = $$createType3;
-        const $$createField3_0 = $$createType5;
+        const $$createField1_0 = $$createType1;
+        const $$createField2_0 = $$createType2;
+        const $$createField3_0 = $$createType4;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("columns" in $$parsedSource) {
             $$parsedSource["columns"] = $$createField0_0($$parsedSource["columns"]);
@@ -281,10 +182,65 @@ export class TableDataResult {
     }
 }
 
+/**
+ * UISettings is the subset of Settings the frontend hydrates from on mount
+ * (GetSettings). Window geometry and persisted field values are backend-managed
+ * and deliberately excluded — the frontend never reads them, so the bound API
+ * surfaces exactly what the UI consumes.
+ */
+export class UISettings {
+    "colorScheme": string;
+    "encoding": string;
+    "charMapping": { [_ in string]?: string };
+    "servicePrices": { [_ in string]?: string };
+    "recentFiles": string[];
+
+    /** Creates a new UISettings instance. */
+    constructor($$source: Partial<UISettings> = {}) {
+        if (!("colorScheme" in $$source)) {
+            this["colorScheme"] = "";
+        }
+        if (!("encoding" in $$source)) {
+            this["encoding"] = "";
+        }
+        if (!("charMapping" in $$source)) {
+            this["charMapping"] = {};
+        }
+        if (!("servicePrices" in $$source)) {
+            this["servicePrices"] = {};
+        }
+        if (!("recentFiles" in $$source)) {
+            this["recentFiles"] = [];
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new UISettings instance from a string or object.
+     */
+    static createFrom($$source: any = {}): UISettings {
+        const $$createField2_0 = $$createType5;
+        const $$createField3_0 = $$createType5;
+        const $$createField4_0 = $$createType0;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("charMapping" in $$parsedSource) {
+            $$parsedSource["charMapping"] = $$createField2_0($$parsedSource["charMapping"]);
+        }
+        if ("servicePrices" in $$parsedSource) {
+            $$parsedSource["servicePrices"] = $$createField3_0($$parsedSource["servicePrices"]);
+        }
+        if ("recentFiles" in $$parsedSource) {
+            $$parsedSource["recentFiles"] = $$createField4_0($$parsedSource["recentFiles"]);
+        }
+        return new UISettings($$parsedSource as Partial<UISettings>);
+    }
+}
+
 // Private type creation functions
 const $$createType0 = $Create.Array($Create.Any);
-const $$createType1 = $Create.Map($Create.Any, $Create.Any);
-const $$createType2 = $Create.Array($$createType0);
-const $$createType3 = $Create.Array($Create.Any);
-const $$createType4 = CellError.createFrom;
-const $$createType5 = $Create.Array($$createType4);
+const $$createType1 = $Create.Array($$createType0);
+const $$createType2 = $Create.Array($Create.Any);
+const $$createType3 = CellError.createFrom;
+const $$createType4 = $Create.Array($$createType3);
+const $$createType5 = $Create.Map($Create.Any, $Create.Any);

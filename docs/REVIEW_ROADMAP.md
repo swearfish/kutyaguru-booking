@@ -93,8 +93,12 @@ Status legend: `[ ]` todo · `[~]` in progress · `[x]` done
 - [x] Log a warning when the settings store falls back to `os.TempDir()` so the
   non-persisting-settings degradation is visible (`settings.go`,
   `newSettingsStore`). Uses the standard `log` package, as `main.go` does.
-- [ ] `GetSettings()` ships the whole `Settings` struct though the frontend reads
-  a subset (`App.tsx:69-79`) — consider a narrower DTO.
+- [x] `GetSettings()` ships the whole `Settings` struct though the frontend reads
+  a subset (`App.tsx`). Added a `UISettings` DTO (colorScheme, encoding,
+  charMapping, servicePrices, recentFiles) and returns it from `GetSettings`;
+  window geometry and persisted field values are now excluded from the bound API.
+  Field names match, so `App.tsx` is unchanged; regenerated bindings dropped the
+  now-unreferenced `Settings` model in favour of `UISettings`.
 - [x] Include `rowEnabled` in `emptyTable` (`App.tsx`) to drop some defensive
   `rowEnabled?.[i] ?? true` chains. The generated `TableDataResult` already types
   `rowEnabled` as non-optional `boolean[]` and its constructor defaults it to `[]`,

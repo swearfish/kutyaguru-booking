@@ -10,6 +10,6 @@ export {
     CellError,
     Field,
     FieldType,
-    Settings,
-    TableDataResult
+    TableDataResult,
+    UISettings
 } from "./models.js";

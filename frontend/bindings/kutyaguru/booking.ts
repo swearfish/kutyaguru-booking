@@ -61,9 +61,10 @@ export function GetServicePrices(): $CancellablePromise<{ [_ in string]?: string
 }
 
 /**
- * GetSettings returns the current user settings (called on frontend mount).
+ * GetSettings returns the UI-relevant subset of user settings (called on
+ * frontend mount).
  */
-export function GetSettings(): $CancellablePromise<$models.Settings> {
+export function GetSettings(): $CancellablePromise<$models.UISettings> {
     return $Call.ByID(2598443442).then(($result: any) => {
         return $$createType4($result);
     });
@@ -224,5 +225,5 @@ const $$createType0 = $Create.Map($Create.Any, $Create.Any);
 const $$createType1 = $models.Field.createFrom;
 const $$createType2 = $Create.Array($$createType1);
 const $$createType3 = $Create.Array($Create.Any);
-const $$createType4 = $models.Settings.createFrom;
+const $$createType4 = $models.UISettings.createFrom;
 const $$createType5 = $models.TableDataResult.createFrom;

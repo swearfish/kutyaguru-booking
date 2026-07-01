@@ -210,11 +210,30 @@ func (b *Booking) ServiceShutdown() error {
 
 // ─── Wails-exposed methods ────────────────────────────────────────────────────
 
-// GetSettings returns the current user settings (called on frontend mount).
-func (b *Booking) GetSettings() Settings {
+// UISettings is the subset of Settings the frontend hydrates from on mount
+// (GetSettings). Window geometry and persisted field values are backend-managed
+// and deliberately excluded — the frontend never reads them, so the bound API
+// surfaces exactly what the UI consumes.
+type UISettings struct {
+	ColorScheme   string            `json:"colorScheme"`
+	Encoding      string            `json:"encoding"`
+	CharMapping   map[string]string `json:"charMapping"`
+	ServicePrices map[string]string `json:"servicePrices"`
+	RecentFiles   []string          `json:"recentFiles"`
+}
+
+// GetSettings returns the UI-relevant subset of user settings (called on
+// frontend mount).
+func (b *Booking) GetSettings() UISettings {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	return b.settings
+	return UISettings{
+		ColorScheme:   b.settings.ColorScheme,
+		Encoding:      b.settings.Encoding,
+		CharMapping:   b.settings.CharMapping,
+		ServicePrices: b.settings.ServicePrices,
+		RecentFiles:   b.settings.RecentFiles,
+	}
 }
 
 // SetColorScheme persists the UI color scheme ("light" | "dark" | "auto").
