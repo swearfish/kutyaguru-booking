@@ -534,7 +534,13 @@ export default function App() {
 
       <AppShell.Main style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {view === 'table' && (
-          <div style={{ flex: 1, overflow: 'hidden', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+          // A definite height (not flex:1) is required so react-data-grid scrolls its
+          // rows internally — keeping its column header pinned to the top and the sheet
+          // tabs pinned below. AppShell.Main is only min-height:100dvh (indefinite), so
+          // height:100% wouldn't resolve and the grid would grow to its full row count,
+          // scrolling the header and tabs out of view. The offset vars are the header
+          // (44px) and footer (26px) heights, set on the shell root and inherited here.
+          <div style={{ height: 'calc(100dvh - var(--app-shell-header-offset, 0px) - var(--app-shell-footer-offset, 0px))', flexShrink: 0, overflow: 'hidden', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
             <div style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
               <DataTab tableData={tableData} onCellChange={handleCellChange} onAddToMapping={handleAddToMapping} onToggleRow={handleToggleRow} onToggleAll={handleToggleAll} charMapping={charMapping} filterText={filterText} scrollTarget={scrollTarget} />
             </div>
