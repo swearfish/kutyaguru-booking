@@ -1,0 +1,42 @@
+Kutyaguru Booking
+Copyright (c) 2026 Akos Nagy
+
+This product is licensed under the terms of the MIT License (see LICENSE).
+
+This software depends on the following third-party open-source packages.
+Each remains under its own license and copyright, listed here for
+attribution; consult each project's repository for the full license text.
+
+Go modules
+  - github.com/wailsapp/wails/v3 — MIT License — Copyright the Wails authors
+  - github.com/xuri/excelize/v2 — BSD 3-Clause License — Copyright the excelize authors
+  - github.com/xuri/efp — BSD 3-Clause License — Copyright the excelize authors
+  - github.com/xuri/nfp — BSD 3-Clause License — Copyright the excelize authors
+  - gopkg.in/yaml.v3 — MIT / Apache License 2.0 — Copyright the go-yaml authors
+  - golang.org/x/text — BSD 3-Clause License — Copyright The Go Authors
+  - golang.org/x/crypto — BSD 3-Clause License — Copyright The Go Authors
+  - golang.org/x/net — BSD 3-Clause License — Copyright The Go Authors
+  - golang.org/x/sys — BSD 3-Clause License — Copyright The Go Authors
+  - github.com/adrg/xdg — MIT License
+  - github.com/coder/websocket — BSD 3-Clause License
+  - github.com/go-ole/go-ole — MIT License
+  - github.com/godbus/dbus/v5 — BSD 2-Clause License
+  - github.com/jchv/go-winloader — Unlicense
+  - github.com/kr/text — MIT License
+  - github.com/mattn/go-colorable — MIT License
+  - github.com/mattn/go-isatty — MIT License
+  - github.com/richardlehane/mscfb — Apache License 2.0
+  - github.com/richardlehane/msoleps — Apache License 2.0
+  - github.com/tiendc/go-deepcopy — MIT License
+  - github.com/wailsapp/wails/webview2 — MIT License
+
+Frontend (npm) packages
+  - react / react-dom — MIT License — Copyright Meta Platforms, Inc.
+  - @mantine/core, @mantine/dates, @mantine/hooks, @mantine/notifications — MIT License — Copyright Mantine contributors
+  - @wailsio/runtime — MIT License — Copyright the Wails authors
+  - react-data-grid — MIT License
+  - dayjs — MIT License
+  - vite, @vitejs/plugin-react, typescript — MIT License
+
+The exact set of transitive dependencies and their versions is recorded in
+go.sum and frontend/package-lock.json.

@@ -57,3 +57,8 @@ host with `makensis`.
 
 Settings (including window geometry) persist to
 `<UserConfigDir>/kutyaguru/settings.json`.
+
+## License
+
+MIT — see [LICENSE](LICENSE). Third-party dependency attributions are listed
+in [NOTICE](NOTICE).
