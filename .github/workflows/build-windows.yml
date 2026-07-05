@@ -25,20 +25,24 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install Wails
-        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.12.0
+        run: go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-alpha2.109
+
+      - name: Install frontend dependencies
+        run: npm install
+        working-directory: frontend
 
       - name: Build
-        run: wails build -clean -webview2 embed -o kutyaguru-booking.exe
+        run: wails3 task windows:build ARCH=amd64 CGO_ENABLED=0
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: kutyaguru-booking-windows
-          path: build/bin/kutyaguru-booking.exe
+          path: bin/kutyaguru-booking.exe
           retention-days: 30
 
       - name: Create release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: build/bin/kutyaguru-booking.exe
+          files: bin/kutyaguru-booking.exe
